@@ -1,0 +1,65 @@
+{
+  "bambuLab": {
+    "enabled": false,
+    "printers": [
+      {
+        "id": "bambu_x1_01",
+        "name": "Bambu Lab X1 Carbon",
+        "ip": "192.168.1.100",
+        "accessCode": "YOUR_PRINTER_ACCESS_CODE",
+        "serialNumber": "YOUR_PRINTER_SERIAL",
+        "model": "X1-Carbon"
+      }
+    ],
+    "defaultSettings": {
+      "layer_height": 0.2,
+      "infill_density": 20,
+      "print_speed": 100,
+      "support_enabled": true,
+      "bed_temperature": 60,
+      "nozzle_temperature": 210
+    }
+  },
+  "materials": {
+    "PLA": {
+      "nozzle_temp": 210,
+      "bed_temp": 60,
+      "speed_modifier": 1.0,
+      "retraction_distance": 0.8,
+      "retraction_speed": 40
+    },
+    "PETG": {
+      "nozzle_temp": 235,
+      "bed_temp": 80,
+      "speed_modifier": 0.8,
+      "retraction_distance": 1.0,
+      "retraction_speed": 35
+    },
+    "ABS": {
+      "nozzle_temp": 250,
+      "bed_temp": 100,
+      "speed_modifier": 0.9,
+      "retraction_distance": 1.0,
+      "retraction_speed": 40
+    },
+    "TPU": {
+      "nozzle_temp": 220,
+      "bed_temp": 50,
+      "speed_modifier": 0.5,
+      "retraction_distance": 0.5,
+      "retraction_speed": 25
+    }
+  },
+  "safety": {
+    "max_print_time_hours": 24,
+    "require_confirmation": true,
+    "auto_shutdown_enabled": true,
+    "temperature_monitoring": true,
+    "power_loss_recovery": true
+  },
+  "maintenance": {
+    "hours_between_cleaning": 100,
+    "hours_between_calibration": 200,
+    "filament_change_purge_length": 150
+  }
+}

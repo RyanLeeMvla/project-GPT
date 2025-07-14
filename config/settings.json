@@ -1,0 +1,63 @@
+{
+  "openai": {
+    "apiKey": "YOUR_OPENAI_API_KEY_HERE",
+    "model": "gpt-4",
+    "maxTokens": 1000,
+    "temperature": 0.7
+  },
+  "voice": {
+    "enabled": true,
+    "wakeWords": ["jarvis", "gpt"],
+    "language": "en-US",
+    "silenceThreshold": 500,
+    "maxRecordingLength": 10000
+  },
+  "tts": {
+    "enabled": true,
+    "voice": "default",
+    "rate": 1.0,
+    "volume": 1.0
+  },
+  "security": {
+    "requireAuthentication": false,
+    "sessionTimeout": 86400000,
+    "maxFailedAttempts": 3,
+    "auditLogging": true
+  },
+  "computer": {
+    "allowSystemOperations": true,
+    "allowFileOperations": true,
+    "allowBrowserControl": true,
+    "restrictedPaths": [
+      "C:\\Windows\\System32",
+      "C:\\Program Files",
+      "C:\\Users\\*\\AppData"
+    ]
+  },
+  "fabrication": {
+    "bambuLab": {
+      "enabled": false,
+      "autoConnect": false,
+      "printers": []
+    },
+    "safety": {
+      "requireConfirmation": true,
+      "maxPrintTimeHours": 24,
+      "autoShutdownEnabled": true
+    }
+  },
+  "projects": {
+    "autoBackup": true,
+    "backupInterval": 3600000,
+    "maxProjects": 100,
+    "defaultProjectType": "general"
+  },
+  "ui": {
+    "theme": "dark",
+    "showNotifications": true,
+    "minimizeToTray": true,
+    "startMinimized": false
+  },
+  "autoStartListening": false,
+  "debug": false
+}

@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JARVIS AI Agent</title>
+    <style>
+        :root {
+            --primary-color: #00d4ff;
+            --secondary-color: #0066cc;
+            --background-dark: #0a0a0a;
+            --background-secondary: #1a1a1a;
+            --text-primary: #ffffff;
+            --text-secondary: #cccccc;
+            --accent-color: #ffaa00;
+            --success-color: #00ff88;
+            --error-color: #ff4444;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--background-dark);
+            color: var(--text-primary);
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        .sidebar {
+            width: 300px;
+            background: var(--background-secondary);
+            border-right: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            height: 60px;
+            background: var(--background-secondary);
+            border-bottom: 1px solid #333;
+            display: flex;
+            align-items: center;
+            justify-content: between;
+            padding: 0 20px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 20px;
+            border-bottom: 1px solid #333;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 18px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--success-color);
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.listening {
+            background: var(--primary-color);
+        }
+
+        .status-dot.offline {
+            background: var(--error-color);
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .nav-menu {
+            flex: 1;
+            padding: 20px 0;
+        }
+
+        .nav-item {
+            padding: 12px 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-left: 3px solid transparent;
+        }
+
+        .nav-item:hover {
+            background: rgba(0, 212, 255, 0.1);
+            border-left-color: var(--primary-color);
+        }
+
+        .nav-item.active {
+            background: rgba(0, 212, 255, 0.2);
+            border-left-color: var(--primary-color);
+        }
+
+        .nav-item i {
+            width: 20px;
+            margin-right: 10px;
+        }
+
+        .content-area {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            max-width: 80%;
+        }
+
+        .message.user {
+            background: var(--secondary-color);
+            margin-left: auto;
+            text-align: right;
+        }
+
+        .message.jarvis {
+            background: var(--background-secondary);
+            border: 1px solid #333;
+        }
+
+        .message-header {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 5px;
+        }
+
+        .input-area {
+            display: flex;
+            gap: 10px;
+            padding: 20px;
+            background: var(--background-secondary);
+            border-top: 1px solid #333;
+        }
+
+        .input-field {
+            flex: 1;
+            padding: 12px;
+            background: var(--background-dark);
+            border: 1px solid #333;
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: var(--background-dark);
+        }
+
+        .btn-primary:hover {
+            background: #00a6cc;
+        }
+
+        .btn-secondary {
+            background: var(--background-secondary);
+            color: var(--text-primary);
+            border: 1px solid #333;
+        }
+
+        .btn-secondary:hover {
+            background: #333;
+        }
+
+        .voice-control {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .voice-button {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+            border: none;
+            cursor: pointer;
+            color: white;
+            font-size: 24px;
+            transition: all 0.3s ease;
+            margin-bottom: 10px;
+        }
+
+        .voice-button:hover {
+            transform: scale(1.1);
+        }
+
+        .voice-button.listening {
+            animation: listening-pulse 1s infinite;
+        }
+
+        @keyframes listening-pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: var(--background-secondary);
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #333;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: var(--primary-color);
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .project-list {
+            background: var(--background-secondary);
+            border-radius: 10px;
+            border: 1px solid #333;
+        }
+
+        .project-item {
+            padding: 15px 20px;
+            border-bottom: 1px solid #333;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        .project-item:hover {
+            background: rgba(0, 212, 255, 0.1);
+        }
+
+        .project-item:last-child {
+            border-bottom: none;
+        }
+
+        .project-name {
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+
+        .project-meta {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #333;
+            border-top-color: var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <aside class="sidebar">
+            <div class="logo">
+                <div class="logo-icon">J</div>
+                <div>
+                    <div style="font-weight: bold;">JARVIS</div>
+                    <div style="font-size: 12px; color: #ccc;">AI Agent</div>
+                </div>
+            </div>
+            
+            <nav class="nav-menu">
+                <div class="nav-item active" data-page="dashboard">
+                    <i>🏠</i> Dashboard
+                </div>
+                <div class="nav-item" data-page="chat">
+                    <i>💬</i> Chat
+                </div>
+                <div class="nav-item" data-page="projects">
+                    <i>📊</i> Projects
+                </div>
+                <div class="nav-item" data-page="fabrication">
+                    <i>🖨️</i> 3D Printing
+                </div>
+                <div class="nav-item" data-page="inventory">
+                    <i>📦</i> Inventory
+                </div>
+                <div class="nav-item" data-page="notes">
+                    <i>📝</i> Notes
+                </div>
+                <div class="nav-item" data-page="settings">
+                    <i>⚙️</i> Settings
+                </div>
+            </nav>
+            
+            <div class="voice-control">
+                <button class="voice-button" id="voiceButton">🎤</button>
+                <div id="voiceStatus">Ready to listen</div>
+            </div>
+        </aside>
+        
+        <main class="main-content">
+            <header class="header">
+                <h1 id="pageTitle">Dashboard</h1>
+                <div class="status-indicator">
+                    <span id="statusText">Online</span>
+                    <div class="status-dot" id="statusDot"></div>
+                </div>
+            </header>
+            
+            <div class="content-area">
+                <!-- Dashboard Content -->
+                <div id="dashboard-content" class="page-content">
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-value" id="activeProjects">0</div>
+                            <div class="stat-label">Active Projects</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="completedTasks">0</div>
+                            <div class="stat-label">Completed Tasks</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="printsInProgress">0</div>
+                            <div class="stat-label">Prints in Progress</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="totalNotes">0</div>
+                            <div class="stat-label">Total Notes</div>
+                        </div>
+                    </div>
+                    
+                    <h3 style="margin-bottom: 20px;">Recent Activity</h3>
+                    <div id="recentActivity" class="project-list">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Chat Content -->
+                <div id="chat-content" class="page-content hidden">
+                    <div class="chat-container">
+                        <div class="chat-messages" id="chatMessages">
+                            <div class="message jarvis">
+                                <div class="message-header">JARVIS - System</div>
+                                <div>Hello! I'm JARVIS, your AI assistant. How can I help you today?</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Projects Content -->
+                <div id="projects-content" class="page-content hidden">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h3>Your Projects</h3>
+                        <button class="btn btn-primary" id="newProjectBtn">New Project</button>
+                    </div>
+                    <div id="projectsList" class="project-list">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Fabrication Content -->
+                <div id="fabrication-content" class="page-content hidden">
+                    <h3 style="margin-bottom: 20px;">3D Printer Status</h3>
+                    <div id="printerStatus" class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-value">Disconnected</div>
+                            <div class="stat-label">Bambu Lab Status</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Other content sections will be populated dynamically -->
+                <div id="inventory-content" class="page-content hidden">
+                    <h3>Inventory Management</h3>
+                    <p>Inventory management features coming soon...</p>
+                </div>
+                
+                <div id="notes-content" class="page-content hidden">
+                    <h3>Your Notes</h3>
+                    <div id="notesList">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="settings-content" class="page-content hidden">
+                    <h3>Settings</h3>
+                    <p>Settings panel coming soon...</p>
+                </div>
+            </div>
+            
+            <div class="input-area">
+                <input type="text" class="input-field" id="chatInput" placeholder="Type a command or ask JARVIS something...">
+                <button class="btn btn-primary" id="sendBtn">Send</button>
+            </div>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
