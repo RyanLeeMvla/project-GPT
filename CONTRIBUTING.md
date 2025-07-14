@@ -1,11 +1,11 @@
-# Contributing to JARVIS AI Agent
+# Contributing to GPT AI Agent
 
-Thank you for your interest in contributing to JARVIS AI Agent! This document provides guidelines for contributing to the project.
+Thank you for your interest in contributing to GPT AI Agent! This document provides guidelines for contributing to the project.
 
 ## Getting Started
 
 1. Fork the repository
-2. Clone your fork: `git clone https://github.com/YOUR_USERNAME/jarvis-ai-agent.git`
+2. Clone your fork: `git clone https://github.com/YOUR_USERNAME/gpt-ai-agent.git`
 3. Install dependencies: `npm install`
 4. Run the setup wizard: `npm run setup`
 5. Start development: `npm run dev`
@@ -76,4 +76,4 @@ When reporting bugs:
 
 Feel free to open an issue for questions or join the discussions!
 
-Thank you for contributing to JARVIS AI Agent! 🤖
+Thank you for contributing to GPT AI Agent! 🤖

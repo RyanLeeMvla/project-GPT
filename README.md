@@ -1,10 +1,10 @@
-# JARVIS AI Agent
+# GPT AI Agent
 
 A comprehensive voice-activated AI assistant inspired by JARVIS from Iron Man, designed to assist with project management, 3D modeling, fabrication control, and general computer operations.
 
 ## Features
 
-- 🎤 Voice activation and control with "JARVIS" wake word
+- 🎤 Voice activation and control with "GPT" wake word
 - 📝 Intelligent note-taking with trigger phrases ("GPT, log that instance...")
 - 🖥️ Computer operation control (file management, app launching)
 - 🔍 Error detection and optimization suggestions
@@ -61,7 +61,7 @@ A comprehensive voice-activated AI assistant inspired by JARVIS from Iron Man, d
    ```bash
    npm run setup
    ```
-4. **Start JARVIS**:
+4. **Start GPT**:
    ```bash
    npm start
    ```
@@ -87,7 +87,7 @@ If you prefer to configure manually:
 3. **Configure Bambu Lab printer** (optional):
    Edit `config/fabrication.json` with your printer details
 
-4. **Start JARVIS**:
+4. **Start GPT**:
    ```bash
    npm start
    ```
@@ -96,20 +96,20 @@ If you prefer to configure manually:
 
 ### Voice Commands
 
-- **"JARVIS"** - Wake word to activate JARVIS
+- **"GPT"** - Wake word to activate GPT
 - **"GPT, log that instance [description]"** - Quick note-taking with context
 
 ### Example Commands
 
-- "JARVIS, create a new project for my 3D printed robot"
-- "JARVIS, open OnShape for 3D modeling"
-- "JARVIS, check my 3D printer status"
-- "JARVIS, show me my current projects"
+- "GPT, create a new project for my 3D printed robot"
+- "GPT, open OnShape for 3D modeling"
+- "GPT, check my 3D printer status"
+- "GPT, show me my current projects"
 - "GPT, log that instance - found issue with motor alignment"
 
 ### Desktop Interface
 
-- **System Tray**: JARVIS runs in the background with a system tray icon
+- **System Tray**: GPT runs in the background with a system tray icon
 - **Dashboard**: Overview of projects, tasks, and system status
 - **Chat Interface**: Text-based interaction with JARVIS
 - **Project Management**: Create, track, and manage multiple projects
@@ -135,7 +135,7 @@ If you prefer to configure manually:
 {
   "voice": {
     "enabled": true,
-    "wakeWords": ["jarvis", "gpt"],
+    "wakeWords": ["gpt"],
     "language": "en-US"
   }
 }
@@ -204,7 +204,7 @@ src/
 
 ### API Integration
 
-JARVIS uses the OpenAI GPT-4 API for natural language processing. The system is designed to:
+GPT uses the OpenAI GPT-4 API for natural language processing. The system is designed to:
 - Understand context and intent
 - Ask clarifying questions when needed
 - Provide detailed responses with actionable suggestions
@@ -227,10 +227,10 @@ JARVIS uses the OpenAI GPT-4 API for natural language processing. The system is 
    - Check network connectivity
    - Ensure printer is powered on and connected to network
 
-4. **JARVIS not responding**
+4. **GPT not responding**
    - Check the system tray for status
    - Restart the application
-   - Check logs in `logs/jarvis.log`
+   - Check logs in `logs/gpt.log`
 
 ### Debug Mode
 

@@ -1,4 +1,4 @@
-const recorder = require('node-audio-recorder');
+const recorder = require('node-record-lpcm16');
 const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
@@ -7,9 +7,8 @@ class VoiceManager {
     constructor() {
         this.isListening = false;
         this.isRecording = false;
-        this.audioRecorder = null;
         this.voiceCallback = null;
-        this.wakeWords = ['jarvis', 'gpt'];
+        this.wakeWords = ['gpt', 'hey gpt'];
         this.isInitialized = false;
         this.silenceThreshold = 500; // ms of silence before processing
         this.maxRecordingLength = 10000; // 10 seconds max
@@ -21,9 +20,6 @@ class VoiceManager {
         try {
             // Check if audio recording is available
             await this.checkAudioAvailability();
-            
-            // Initialize audio recorder
-            this.setupAudioRecorder();
             
             this.isInitialized = true;
             console.log('✅ Voice Manager initialized successfully');
@@ -62,25 +58,6 @@ class VoiceManager {
                 }
             });
         });
-    }
-
-    setupAudioRecorder() {
-        const options = {
-            program: process.platform === 'win32' ? 'sox' : 'rec',
-            device: null,
-            bits: 16,
-            channels: 1,
-            encoding: 'signed-integer',
-            format: 'S16_LE',
-            rate: 16000,
-            type: 'wav',
-            silence: 2.0, // Silence threshold
-            thresholdStart: 5,
-            thresholdStop: 5,
-            keepSilence: true
-        };
-
-        this.audioRecorder = recorder.record(options);
     }
 
     async startListening(callback) {
@@ -130,16 +107,24 @@ class VoiceManager {
                 fs.mkdirSync(tempDir, { recursive: true });
             }
 
-            // Start recording
+            // Start recording with node-record-lpcm16
+            const recording = recorder.start({
+                sampleRateHertz: 16000,
+                threshold: 0,
+                verbose: false,
+                recordProgram: 'rec',
+                silence: '1.0'
+            });
+
             const fileStream = fs.createWriteStream(audioFile);
-            this.audioRecorder.stream().pipe(fileStream);
+            recording.stream().pipe(fileStream);
 
             // Set timeout for max recording length
             const timeout = setTimeout(() => {
-                this.audioRecorder.stop();
+                recording.stop();
             }, this.maxRecordingLength);
 
-            this.audioRecorder.on('end', async () => {
+            recording.stream().on('end', async () => {
                 clearTimeout(timeout);
                 
                 try {
@@ -171,7 +156,7 @@ class VoiceManager {
                 }
             });
 
-            this.audioRecorder.on('error', (error) => {
+            recording.stream().on('error', (error) => {
                 clearTimeout(timeout);
                 console.error('❌ Audio recording error:', error);
                 if (fs.existsSync(audioFile)) {
@@ -286,10 +271,6 @@ class VoiceManager {
         }
 
         this.isListening = false;
-        
-        if (this.audioRecorder) {
-            this.audioRecorder.stop();
-        }
         
         console.log('🔇 Voice listening stopped');
     }

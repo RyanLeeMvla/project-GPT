@@ -1,27 +1,27 @@
 const { app, BrowserWindow, ipcMain, Menu, Tray } = require('electron');
 const path = require('path');
-const JarvisCore = require('./core/jarvis-core');
+const GptCore = require('./core/gpt-core');
 const VoiceManager = require('./voice/voice-manager');
 const SecurityManager = require('./security/security-manager');
 const ProjectManager = require('./projects/project-manager');
 const config = require('../config/settings.json');
 
-class JarvisApp {
+class GptApp {
     constructor() {
         this.mainWindow = null;
         this.tray = null;
-        this.jarvisCore = null;
+        this.gptCore = null;
         this.voiceManager = null;
         this.isListening = false;
         this.isInitialized = false;
     }
 
     async initialize() {
-        console.log('🤖 JARVIS AI Agent Starting...');
+        console.log('🤖 GPT AI Agent Starting...');
         
         try {
             // Initialize core components
-            this.jarvisCore = new JarvisCore(config.openai.apiKey);
+            this.gptCore = new GptCore(config.openai.apiKey);
             this.voiceManager = new VoiceManager();
             this.securityManager = new SecurityManager();
             this.projectManager = new ProjectManager();
@@ -30,13 +30,13 @@ class JarvisApp {
             this.setupIPCHandlers();
             
             // Initialize components
-            await this.jarvisCore.initialize();
+            await this.gptCore.initialize();
             await this.voiceManager.initialize();
             await this.securityManager.initialize();
             await this.projectManager.initialize();
 
             this.isInitialized = true;
-            console.log('✅ JARVIS initialized successfully');
+            console.log('✅ GPT initialized successfully');
             
             // Start voice listening if enabled
             if (config.autoStartListening) {
@@ -44,7 +44,7 @@ class JarvisApp {
             }
 
         } catch (error) {
-            console.error('❌ Failed to initialize JARVIS:', error);
+            console.error('❌ Failed to initialize GPT:', error);
             throw error;
         }
     }
@@ -58,7 +58,7 @@ class JarvisApp {
                 contextIsolation: false,
                 enableRemoteModule: true
             },
-            icon: path.join(__dirname, '../assets/jarvis-icon.png'),
+            icon: path.join(__dirname, '../assets/gpt-icon.png'),
             show: false, // Start hidden
             skipTaskbar: true
         });
@@ -82,11 +82,11 @@ class JarvisApp {
     }
 
     createTray() {
-        this.tray = new Tray(path.join(__dirname, '../assets/jarvis-tray.png'));
+        this.tray = new Tray(path.join(__dirname, '../assets/gpt-tray.png'));
         
         const contextMenu = Menu.buildFromTemplate([
             {
-                label: 'Show JARVIS',
+                label: 'Show GPT',
                 click: () => {
                     this.mainWindow.show();
                 }
@@ -110,7 +110,7 @@ class JarvisApp {
             },
             { type: 'separator' },
             {
-                label: 'Quit JARVIS',
+                label: 'Quit GPT',
                 click: () => {
                     app.isQuiting = true;
                     app.quit();
@@ -119,7 +119,7 @@ class JarvisApp {
         ]);
 
         this.tray.setContextMenu(contextMenu);
-        this.tray.setToolTip('JARVIS AI Agent');
+        this.tray.setToolTip('GPT AI Agent');
         
         this.tray.on('double-click', () => {
             this.mainWindow.show();
@@ -138,7 +138,7 @@ class JarvisApp {
 
         // AI interaction handlers
         ipcMain.handle('send-command', async (event, command) => {
-            return await this.jarvisCore.processCommand(command);
+            return await this.gptCore.processCommand(command);
         });
 
         // Project management handlers
@@ -162,7 +162,7 @@ class JarvisApp {
 
     async startListening() {
         if (!this.isInitialized) {
-            console.log('⚠️ JARVIS not yet initialized');
+            console.log('⚠️ GPT not yet initialized');
             return false;
         }
 
@@ -172,7 +172,7 @@ class JarvisApp {
             });
             
             this.isListening = true;
-            console.log('🎤 JARVIS is now listening...');
+            console.log('🎤 GPT is now listening...');
             
             // Update tray menu
             this.updateTrayMenu();
@@ -188,7 +188,7 @@ class JarvisApp {
         try {
             await this.voiceManager.stopListening();
             this.isListening = false;
-            console.log('🔇 JARVIS stopped listening');
+            console.log('🔇 GPT stopped listening');
             
             // Update tray menu
             this.updateTrayMenu();
@@ -204,7 +204,7 @@ class JarvisApp {
         if (this.tray) {
             const contextMenu = Menu.buildFromTemplate([
                 {
-                    label: 'Show JARVIS',
+                    label: 'Show GPT',
                     click: () => this.mainWindow.show()
                 },
                 {
@@ -226,7 +226,7 @@ class JarvisApp {
                 },
                 { type: 'separator' },
                 {
-                    label: 'Quit JARVIS',
+                    label: 'Quit GPT',
                     click: () => {
                         app.isQuiting = true;
                         app.quit();
@@ -244,13 +244,13 @@ class JarvisApp {
             // Check for wake words
             const lowerCommand = command.toLowerCase();
             
-            if (lowerCommand.includes('jarvis') || lowerCommand.includes('gpt, log that instance')) {
-                // Process the command through JARVIS core
-                const response = await this.jarvisCore.processCommand(command);
+            if (lowerCommand.includes('gpt') || lowerCommand.includes('gpt, log that instance')) {
+                // Process the command through GPT core
+                const response = await this.gptCore.processCommand(command);
                 
                 // Send response to UI
                 if (this.mainWindow) {
-                    this.mainWindow.webContents.send('jarvis-response', {
+                    this.mainWindow.webContents.send('gpt-response', {
                         command: command,
                         response: response,
                         timestamp: new Date().toISOString()
@@ -269,11 +269,11 @@ class JarvisApp {
 }
 
 // Electron app lifecycle
-const jarvisApp = new JarvisApp();
+const gptApp = new GptApp();
 
 app.whenReady().then(async () => {
-    await jarvisApp.initialize();
-    jarvisApp.createWindow();
+    await gptApp.initialize();
+    gptApp.createWindow();
 });
 
 app.on('window-all-closed', () => {
@@ -282,7 +282,7 @@ app.on('window-all-closed', () => {
 
 app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-        jarvisApp.createWindow();
+        gptApp.createWindow();
     }
 });
 
@@ -292,4 +292,4 @@ app.on('before-quit', () => {
 });
 
 // Export for testing
-module.exports = JarvisApp;
+module.exports = GptApp;

@@ -1,5 +1,5 @@
 {
-  "name": "jarvis-ai-agent",
+  "name": "gpt-ai-agent",
   "version": "1.0.0",
   "description": "A comprehensive voice-activated AI assistant inspired by JARVIS",
   "main": "src/main.js",
@@ -13,7 +13,7 @@
   "keywords": [
     "ai",
     "voice-assistant",
-    "jarvis",
+    "gpt",
     "automation",
     "3d-printing"
   ],
@@ -33,8 +33,7 @@
     "node-cron": "^3.0.3",
     "bcrypt": "^5.1.1",
     "keytar": "^7.9.0",
-    "speech-to-text": "^3.0.0",
-    "node-audio-recorder": "^3.0.0",
+    "node-record-lpcm16": "^1.0.1",
     "play-sound": "^1.1.6",
     "chokidar": "^3.5.3",
     "cheerio": "^1.0.0-rc.12",
@@ -43,8 +42,8 @@
     "dotenv": "^16.3.1"
   },
   "build": {
-    "appId": "com.yourname.jarvis",
-    "productName": "JARVIS AI Agent",
+    "appId": "com.yourname.gpt",
+    "productName": "GPT AI Agent",
     "directories": {
       "output": "dist"
     },

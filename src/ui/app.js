@@ -1,17 +1,17 @@
 const { ipcRenderer } = require('electron');
 
-class JarvisUI {
+class GptUI {
     constructor() {
         this.currentPage = 'dashboard';
         this.isListening = false;
-        this.isJarvisInitialized = false;
+        this.isGptInitialized = false;
         this.chatMessages = [];
         this.projects = [];
         this.notes = [];
     }
 
     async initialize() {
-        console.log('🎨 Initializing JARVIS UI...');
+        console.log('🎨 Initializing GPT UI...');
         
         // Setup event listeners
         this.setupEventListeners();
@@ -22,10 +22,10 @@ class JarvisUI {
         // Load initial data
         await this.loadDashboardData();
         
-        // Check JARVIS status
+        // Check GPT status
         await this.updateStatus();
         
-        console.log('✅ JARVIS UI initialized');
+        console.log('✅ GPT UI initialized');
     }
 
     setupEventListeners() {
@@ -60,9 +60,9 @@ class JarvisUI {
     }
 
     setupIPCListeners() {
-        // Listen for JARVIS responses
-        ipcRenderer.on('jarvis-response', (event, data) => {
-            this.handleJarvisResponse(data);
+        // Listen for GPT responses
+        ipcRenderer.on('gpt-response', (event, data) => {
+            this.handleGptResponse(data);
         });
 
         // Listen for navigation requests
@@ -94,7 +94,7 @@ class JarvisUI {
         // Update page title
         const titles = {
             dashboard: 'Dashboard',
-            chat: 'Chat with JARVIS',
+            chat: 'Chat with GPT',
             projects: 'Project Management',
             fabrication: '3D Printing Control',
             inventory: 'Inventory Management',
@@ -143,7 +143,7 @@ class JarvisUI {
             document.getElementById('printsInProgress').textContent = '0';
             document.getElementById('totalNotes').textContent = '0';
             
-            this.isJarvisInitialized = status?.isInitialized || false;
+            this.isGptInitialized = status?.isInitialized || false;
             
         } catch (error) {
             console.error('Error loading dashboard data:', error);
@@ -298,27 +298,27 @@ class JarvisUI {
             timestamp: new Date().toISOString()
         });
         
-        // Send to JARVIS
+        // Send to GPT
         try {
             const response = await ipcRenderer.invoke('send-command', message);
-            this.handleJarvisResponse({
+            this.handleGptResponse({
                 command: message,
                 response: response,
                 timestamp: new Date().toISOString()
             });
         } catch (error) {
-            console.error('Error sending message to JARVIS:', error);
+            console.error('Error sending message to GPT:', error);
             this.addChatMessage({
-                sender: 'jarvis',
+                sender: 'gpt',
                 message: 'Sorry, I encountered an error processing your request.',
                 timestamp: new Date().toISOString()
             });
         }
     }
 
-    handleJarvisResponse(data) {
+    handleGptResponse(data) {
         this.addChatMessage({
-            sender: 'jarvis',
+            sender: 'gpt',
             message: data.response.message || data.response,
             timestamp: data.timestamp
         });
@@ -347,8 +347,8 @@ class JarvisUI {
 
     createMessageHTML(messageData) {
         const time = new Date(messageData.timestamp).toLocaleTimeString();
-        const senderClass = messageData.sender === 'user' ? 'user' : 'jarvis';
-        const senderName = messageData.sender === 'user' ? 'You' : 'JARVIS';
+        const senderClass = messageData.sender === 'user' ? 'user' : 'gpt';
+        const senderName = messageData.sender === 'user' ? 'You' : 'GPT';
         
         return `
             <div class="message ${senderClass}">
@@ -375,7 +375,7 @@ class JarvisUI {
             const project = await ipcRenderer.invoke('create-project', {
                 name: projectName,
                 type: projectType,
-                description: `Created via JARVIS UI on ${new Date().toLocaleDateString()}`
+                description: `Created via GPT UI on ${new Date().toLocaleDateString()}`
             });
             
             if (project) {
@@ -476,11 +476,11 @@ class JarvisUI {
 
 // Initialize UI when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    const ui = new JarvisUI();
+    const ui = new GptUI();
     ui.initialize();
     
     // Make UI available globally for debugging
-    window.jarvisUI = ui;
+    window.gptUI = ui;
 });
 
 // Add notification animations

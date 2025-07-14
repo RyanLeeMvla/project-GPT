@@ -4,7 +4,7 @@ const ProjectManager = require('../projects/project-manager');
 const FabricationManager = require('../fabrication/fabrication-manager');
 const SecurityManager = require('../security/security-manager');
 
-class JarvisCore {
+class GptCore {
     constructor(apiKey) {
         this.openai = new OpenAI({
             apiKey: apiKey
@@ -21,7 +21,7 @@ class JarvisCore {
     }
 
     async initialize() {
-        console.log('🧠 Initializing JARVIS Core...');
+        console.log('🧠 Initializing GPT Core...');
         
         try {
             // Initialize subsystems
@@ -39,17 +39,17 @@ class JarvisCore {
             this.systemContext = await this.buildSystemContext();
             
             this.isInitialized = true;
-            console.log('✅ JARVIS Core initialized successfully');
+            console.log('✅ GPT Core initialized successfully');
             
         } catch (error) {
-            console.error('❌ Failed to initialize JARVIS Core:', error);
+            console.error('❌ Failed to initialize GPT Core:', error);
             throw error;
         }
     }
 
     async buildSystemContext() {
         const context = `
-You are JARVIS, an advanced AI assistant inspired by Tony Stark's AI from Iron Man. You have the following capabilities and responsibilities:
+You are GPT, an advanced AI assistant inspired by Tony Stark's AI from Iron Man. You have the following capabilities and responsibilities:
 
 CORE PRINCIPLES:
 1. Always ask clarifying questions when commands are ambiguous
@@ -71,7 +71,7 @@ CAPABILITIES:
 - Version control automation
 
 TRIGGER PHRASES:
-- "JARVIS" - General commands and requests
+- "GPT" - General commands and requests
 - "GPT, log that instance" - Note-taking with context awareness
 
 RESPONSE FORMAT:
@@ -201,7 +201,7 @@ CPU Usage: ${systemHealth.cpu}%
                 }
             }
             
-            console.log(`🤖 JARVIS response: ${parsedResponse.message}`);
+            console.log(`🤖 GPT response: ${parsedResponse.message}`);
             return parsedResponse;
             
         } catch (error) {
@@ -320,4 +320,4 @@ CPU Usage: ${systemHealth.cpu}%
     }
 }
 
-module.exports = JarvisCore;
+module.exports = GptCore;
