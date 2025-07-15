@@ -5,15 +5,36 @@ const FabricationManager = require('../fabrication/fabrication-manager');
 const SecurityManager = require('../security/security-manager');
 
 class GptCore {
-    constructor(apiKey) {
+    constructor(apiKey, modelConfig = null) {
         this.openai = new OpenAI({
             apiKey: apiKey
         });
+        
+        // Default model configuration
+        this.modelConfig = modelConfig || {
+            chat: {
+                model: "gpt-3.5-turbo",
+                maxTokens: 1000,
+                temperature: 0.7
+            },
+            codeGeneration: {
+                model: "gpt-4o",
+                maxTokens: 4000,
+                temperature: 0.2
+            },
+            complexReasoning: {
+                model: "o1-preview", 
+                maxTokens: 8000,
+                temperature: 1.0
+            },
+            fallback: "gpt-4-turbo"
+        };
         
         this.computerController = null;
         this.projectManager = null;
         this.fabricationManager = null;
         this.securityManager = null;
+        this.codeRewriter = null;
         
         this.conversationHistory = [];
         this.systemContext = '';
@@ -150,8 +171,8 @@ CPU Usage: ${systemHealth.cpu}%
         }
     }
 
-    async processCommand(userInput) {
-        console.log(`🎯 Processing command: "${userInput}"`);
+    async processCommand(userInput, modelType = 'chat') {
+        console.log(`🎯 Processing command: "${userInput}" with model type: ${modelType}`);
         
         try {
             // Check for specific trigger phrases
@@ -173,6 +194,9 @@ CPU Usage: ${systemHealth.cpu}%
                 this.conversationHistory = this.conversationHistory.slice(-20);
             }
             
+            // Select model configuration based on type
+            const config = this.getModelConfig(modelType);
+            
             // Create the prompt for OpenAI
             const messages = [
                 {
@@ -182,17 +206,23 @@ CPU Usage: ${systemHealth.cpu}%
                 ...this.conversationHistory.slice(-10) // Last 10 messages for context
             ];
             
-            // Get response from OpenAI
+            // Get response from OpenAI with selected model
             const completion = await this.openai.chat.completions.create({
-                model: 'gpt-4',
+                model: config.model,
                 messages: messages,
-                temperature: 0.7,
-                max_tokens: 1000
+                temperature: config.temperature,
+                max_tokens: config.maxTokens
             });
             
             const aiResponse = completion.choices[0].message.content;
             
-            // Parse the JSON response
+            // For code generation, return raw response without JSON parsing
+            if (modelType === 'codeGeneration') {
+                console.log(`🤖 GPT response: ${aiResponse}`);
+                return aiResponse;
+            }
+            
+            // Parse the JSON response for other model types
             let parsedResponse;
             try {
                 parsedResponse = JSON.parse(aiResponse);
@@ -302,6 +332,25 @@ CPU Usage: ${systemHealth.cpu}%
         return keywords.filter(keyword => contentLower.includes(keyword));
     }
 
+    getModelConfig(modelType) {
+        const config = this.modelConfig[modelType];
+        if (!config) {
+            console.warn(`⚠️ Unknown model type: ${modelType}, using fallback`);
+            return {
+                model: this.modelConfig.fallback,
+                maxTokens: 2000,
+                temperature: 0.7
+            };
+        }
+        return config;
+    }
+
+    // Method to update model configuration (useful for settings changes)
+    updateModelConfig(newConfig) {
+        this.modelConfig = { ...this.modelConfig, ...newConfig };
+        console.log('📝 Model configuration updated');
+    }
+
     async executeAction(actionType, parameters) {
         console.log('🔧 executeAction called with:', { actionType, parameters });
         try {
@@ -321,13 +370,70 @@ CPU Usage: ${systemHealth.cpu}%
                 case 'file_management':
                     return await this.computerController.manageFiles(parameters);
                 
+                case 'note_taking':
+                    // Handle different note operations
+                    try {
+                        let result;
+                        if (parameters.action === 'add_note') {
+                            result = await this.projectManager.addNote(parameters.data);
+                        } else if (parameters.action === 'edit_note') {
+                            result = await this.projectManager.updateNote(parameters.data);
+                        } else if (parameters.action === 'delete_note') {
+                            result = await this.projectManager.deleteNote(parameters.data);
+                        } else {
+                            // Default to add_note if no specific action
+                            result = await this.projectManager.addNote(parameters);
+                        }
+                        
+                        // Return standardized success format
+                        return {
+                            success: true,
+                            message: `Note operation completed successfully`,
+                            data: result
+                        };
+                    } catch (error) {
+                        return {
+                            success: false,
+                            error: error.message
+                        };
+                    }
+                
                 case 'security_check':
                     return await this.securityManager.performSecurityCheck(parameters);
                 
                 default:
+                    // Trigger adaptive code rewriting for unknown actions
+                    console.log(`🔧 Unknown action "${actionType}" - triggering adaptive rewrite`);
+                    
+                    if (this.codeRewriter) {
+                        try {
+                            // Build conversation context for rewriting
+                            const conversation = [
+                                { role: 'user', content: `Execute action: ${actionType}` },
+                                { role: 'system', content: `Action "${actionType}" is not implemented. Need to generate this functionality.` }
+                            ];
+                            
+                            const sourceContext = this.codeRewriter.getSourceContext();
+                            const rewriteResult = await this.codeRewriter.generateFeatureCode(conversation, sourceContext, this);
+                            
+                            if (rewriteResult && rewriteResult.changes) {
+                                await this.codeRewriter.applyCodeChanges(rewriteResult.changes);
+                                
+                                return {
+                                    success: true,
+                                    message: `Successfully generated and implemented ${actionType} functionality!`,
+                                    needsRestart: rewriteResult.needsRestart || true
+                                };
+                            }
+                        } catch (rewriteError) {
+                            console.error('Adaptive rewrite failed:', rewriteError);
+                        }
+                    }
+                    
                     return {
                         success: false,
-                        error: `Unknown action type: ${actionType}`
+                        error: `Unknown action type: ${actionType}`,
+                        suggestRewrite: true
                     };
             }
         } catch (error) {
@@ -351,6 +457,10 @@ CPU Usage: ${systemHealth.cpu}%
     async updateSystemContext() {
         this.systemContext = await this.buildSystemContext();
         console.log('🔄 System context updated');
+    }
+
+    setCodeRewriter(codeRewriter) {
+        this.codeRewriter = codeRewriter;
     }
 }
 

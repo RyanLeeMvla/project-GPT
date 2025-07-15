@@ -5,6 +5,7 @@ const GptCore = require('./core/gpt-core');
 const VoiceManager = require('./voice/voice-manager');
 const SecurityManager = require('./security/security-manager');
 const ProjectManager = require('./projects/project-manager');
+const CodeRewriter = require('./core/code-rewriter');
 const config = require('../config/settings.json');
 
 class GptApp {
@@ -13,6 +14,7 @@ class GptApp {
         this.tray = null;
         this.gptCore = null;
         this.voiceManager = null;
+        this.codeRewriter = null;
         this.isListening = false;
         this.isInitialized = false;
     }
@@ -21,10 +23,18 @@ class GptApp {
         console.log('🤖 GPT AI Agent Starting...');
         
         try {
-            // Initialize core components (except voice manager)
-            this.gptCore = new GptCore(config.openai.apiKey);
+            // Initialize core components with model configuration
+            const modelConfig = config.openai.models || {
+                chat: { model: "gpt-3.5-turbo", maxTokens: 1000, temperature: 0.7 },
+                codeGeneration: { model: "gpt-4o", maxTokens: 4000, temperature: 0.2 },
+                complexReasoning: { model: "o1-preview", maxTokens: 8000, temperature: 1.0 },
+                fallback: "gpt-4-turbo"
+            };
+            
+            this.gptCore = new GptCore(config.openai.apiKey, modelConfig);
             this.securityManager = new SecurityManager();
             this.projectManager = new ProjectManager();
+            this.codeRewriter = new CodeRewriter();
 
             // Setup IPC handlers
             this.setupIPCHandlers();
@@ -33,6 +43,13 @@ class GptApp {
             await this.gptCore.initialize();
             await this.securityManager.initialize();
             await this.projectManager.initialize();
+            await this.codeRewriter.initialize();
+            
+            // Connect codeRewriter to GPT core for adaptive functionality
+            this.gptCore.codeRewriter = this.codeRewriter;
+            
+            // Connect code rewriter to GPT core for adaptive functionality
+            this.gptCore.setCodeRewriter(this.codeRewriter);
 
             this.isInitialized = true;
             console.log('✅ GPT initialized successfully');
@@ -257,9 +274,10 @@ class GptApp {
             return this.stopListening();
         });
 
-        // AI interaction handlers
-        ipcMain.handle('send-command', async (event, command) => {
-            const result = await this.gptCore.processCommand(command);
+        // AI interaction handlers with model selection
+        ipcMain.handle('send-command', async (event, command, options = {}) => {
+            const modelType = options.modelType || 'chat'; // default to chat model
+            const result = await this.gptCore.processCommand(command, modelType);
             
             // Check if this was a project management command and broadcast update
             const projectKeywords = ['project', 'move', 'stage', 'status', 'create', 'update', 'planning', 'testing', 'completed'];
@@ -285,6 +303,10 @@ class GptApp {
             return await this.projectManager.createProject(projectData);
         });
 
+        ipcMain.handle('delete-project', async (event, projectId) => {
+            return await this.projectManager.deleteProject(projectId);
+        });
+
         // Add missing IPC handlers for project management
         ipcMain.handle('get-all-tasks', async () => {
             try {
@@ -308,6 +330,16 @@ class GptApp {
             } catch (error) {
                 console.error('Error getting project timeline:', error);
                 return [];
+            }
+        });
+
+        ipcMain.handle('get-notes', async (event, projectId = null) => {
+            try {
+                const notes = await this.projectManager.getNotes(projectId);
+                return { notes: notes };
+            } catch (error) {
+                console.error('Error getting notes:', error);
+                return { notes: [] };
             }
         });
 
@@ -339,135 +371,115 @@ class GptApp {
                 return false;
             }
         });
-    }
 
-    async startListening() {
-        if (!this.isInitialized) {
-            console.log('⚠️ GPT not yet initialized');
-            return false;
-        }
-
-        try {
-            if (!this.voiceManager) {
-                console.log('⚠️ Voice Manager not initialized yet');
-                return false;
-            }
-            
-            await this.voiceManager.startListening((command) => {
-                this.handleVoiceCommand(command);
-            });
-            
-            this.isListening = true;
-            console.log('🎤 GPT is now listening...');
-            
-            // Update tray menu
-            this.updateTrayMenu();
-            
-            return true;
-        } catch (error) {
-            console.error('❌ Failed to start listening:', error);
-            return false;
-        }
-    }
-
-    async stopListening() {
-        try {
-            if (!this.voiceManager) {
-                console.log('⚠️ Voice Manager not initialized yet');
-                return;
-            }
-            
-            await this.voiceManager.stopListening();
-            this.isListening = false;
-            console.log('🔇 GPT stopped listening');
-            
-            // Update tray menu
-            this.updateTrayMenu();
-            
-            return true;
-        } catch (error) {
-            console.error('❌ Failed to stop listening:', error);
-            return false;
-        }
-    }
-
-    updateTrayMenu() {
-        if (this.tray) {
-            const contextMenu = Menu.buildFromTemplate([
-                {
-                    label: 'Show GPT',
-                    click: () => this.mainWindow.show()
-                },
-                {
-                    label: this.isListening ? 'Stop Listening' : 'Start Listening',
-                    click: () => {
-                        if (this.isListening) {
-                            this.stopListening();
-                        } else {
-                            this.startListening();
-                        }
-                    }
-                },
-                {
-                    label: 'Settings',
-                    click: () => {
-                        this.mainWindow.show();
-                        this.mainWindow.webContents.send('navigate-to', 'settings');
-                    }
-                },
-                { type: 'separator' },
-                {
-                    label: 'Quit GPT',
-                    click: () => {
-                        app.isQuiting = true;
-                        app.quit();
-                    }
-                }
-            ]);
-            this.tray.setContextMenu(contextMenu);
-        }
-    }
-
-    async handleVoiceCommand(command) {
-        console.log(`🎤 Voice command received: "${command}"`);
-        
-        try {
-            // Check for wake words
-            const lowerCommand = command.toLowerCase();
-            
-            if (lowerCommand.includes('gpt') || lowerCommand.includes('gpt, log that instance')) {
-                // Process the command through GPT core
-                const response = await this.gptCore.processCommand(command);
+        // Code rewriting handlers
+        ipcMain.handle('rewrite-code', async (event, conversation, actionType) => {
+            try {
+                console.log('🔧 Starting code rewrite for action:', actionType);
                 
-                // Send response to UI
-                if (this.mainWindow) {
-                    this.mainWindow.webContents.send('gpt-response', {
-                        command: command,
-                        response: response,
-                        timestamp: new Date().toISOString()
-                    });
+                // Get full source context
+                const sourceContext = this.codeRewriter.getSourceContext();
+                
+                // Create backup
+                const backupId = await this.codeRewriter.createBackup();
+                
+                // Generate code changes using GPT
+                const prompt = this.buildCodeRewritePrompt(conversation, sourceContext, actionType);
+                const codeResponse = await this.gptCore.processCommand(prompt, 'codeGeneration');
+                
+                // Parse the response to get structured code changes
+                let codeChanges;
+                try {
+                    const jsonMatch = codeResponse.match(/\{[\s\S]*\}/);
+                    codeChanges = JSON.parse(jsonMatch ? jsonMatch[0] : codeResponse);
+                } catch (parseError) {
+                    throw new Error('Failed to parse code generation response');
                 }
                 
-                // Speak the response if TTS is enabled
-                if (config.tts.enabled && response.shouldSpeak) {
-                    await this.voiceManager.speak(response.message);
-                }
+                // Apply the code changes
+                await this.codeRewriter.applyCodeChanges(codeChanges.changes);
+                
+                return {
+                    success: true,
+                    description: codeChanges.description,
+                    needsRestart: codeChanges.needsRestart || false,
+                    backupId: backupId
+                };
+                
+            } catch (error) {
+                console.error('❌ Code rewrite failed:', error);
+                return {
+                    success: false,
+                    error: error.message
+                };
             }
-        } catch (error) {
-            console.error('❌ Error processing voice command:', error);
-        }
+        });
+
+        ipcMain.handle('get-source-context', async () => {
+            return this.codeRewriter.getSourceContext();
+        });
+
+        ipcMain.handle('restore-backup', async (event, backupId) => {
+            try {
+                await this.codeRewriter.restoreBackup(backupId);
+                return { success: true };
+            } catch (error) {
+                return { success: false, error: error.message };
+            }
+        });
+
+        ipcMain.handle('trigger-restart', async () => {
+            try {
+                console.log('🔄 Restart triggered by frontend');
+                await this.codeRewriter.triggerRestart();
+                return { success: true };
+            } catch (error) {
+                console.error('Error triggering restart:', error);
+                return { success: false, error: error.message };
+            }
+        });
     }
 
-    async initializeVoiceManager() {
-        try {
-            console.log('🎤 Initializing Voice Manager...');
-            // Initialize voice manager with window reference
-            this.voiceManager = new VoiceManager(this.mainWindow);
-            await this.voiceManager.initialize();
-            console.log('✅ Voice Manager initialized with window reference');
-        } catch (error) {
-            console.error('❌ Failed to initialize Voice Manager:', error);
+    buildCodeRewritePrompt(conversation, sourceContext, actionType) {
+        return `
+CONTEXT: You are a code rewriting agent that dynamically adds missing functionality to applications.
+
+MISSING ACTION: ${actionType}
+CONVERSATION: ${conversation.map(msg => `${msg.role}: ${msg.content}`).join('\n')}
+
+CURRENT CODEBASE STRUCTURE:
+${Object.entries(sourceContext).map(([file, info]) => 
+    `${file}: ${info.classes.join(', ')} | functions: ${info.functions.join(', ')}`
+).join('\n')}
+
+KEY SOURCE FILES:
+${Object.entries(sourceContext).slice(0, 3).map(([file, info]) => 
+    `\n=== ${file} ===\n${info.content.substring(0, 3000)}...`
+).join('\n')}
+
+TASK: Generate JSON with specific code changes to implement the missing "${actionType}" functionality.
+
+REQUIREMENTS:
+1. Add the missing functionality to handle "${actionType}"
+2. Integrate seamlessly with existing code patterns
+3. Include proper error handling
+4. Update multiple files if needed (backend + frontend)
+
+RESPONSE FORMAT (JSON only, no markdown):
+{
+    "changes": [
+        {
+            "filePath": "src/path/to/file.js",
+            "operation": "addMethod|updateMethod|insertAfter|replaceSection",
+            "method": "methodName",
+            "content": "complete working code",
+            "search": "text to find for replacement",
+            "insertAfter": "text to insert after"
         }
+    ],
+    "description": "Added ${actionType} functionality with full CRUD operations",
+    "needsRestart": false
+}`;
     }
 }
 

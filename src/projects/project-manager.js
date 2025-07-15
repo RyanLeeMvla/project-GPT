@@ -257,6 +257,30 @@ class ProjectManager {
         });
     }
 
+    async deleteProject(projectId) {
+        return new Promise((resolve, reject) => {
+            const query = `
+                UPDATE projects 
+                SET status = 'deleted', updated_at = CURRENT_TIMESTAMP 
+                WHERE id = ?
+            `;
+
+            this.db.run(query, [projectId], function(err) {
+                if (err) {
+                    console.error('❌ Error deleting project:', err);
+                    reject(err);
+                } else {
+                    console.log(`✅ Project ${projectId} marked as deleted`);
+                    resolve({
+                        success: true,
+                        message: `Project ${projectId} deleted successfully`,
+                        id: projectId
+                    });
+                }
+            });
+        });
+    }
+
     async addNote(noteData) {
         return new Promise((resolve, reject) => {
             const {
@@ -485,10 +509,9 @@ class ProjectManager {
                 case 'create_project':
                     const result = await this.createProject(data);
                     return { success: true, data: result, message: `Project "${data.name}" created successfully` };
-                
-                case 'update_project':
+                  case 'update_project':
                     return await this.updateProject(data.id, data.updates);
-                
+
                 case 'add_note':
                     return await this.addNote(data);
                 
