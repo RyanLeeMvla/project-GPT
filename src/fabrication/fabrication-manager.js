@@ -18,8 +18,10 @@ class FabricationManager {
             // Load fabrication configuration
             this.config = await this.loadConfig();
             
-            // Initialize Bambu Lab printers
-            await this.initializeBambuPrinters();
+            // Initialize Bambu Lab printers (non-blocking)
+            this.initializeBambuPrinters().catch(error => {
+                console.warn('⚠️ Printer initialization failed (non-critical):', error.message);
+            });
             
             this.isInitialized = true;
             console.log('✅ Fabrication Manager initialized successfully');
@@ -109,8 +111,11 @@ class FabricationManager {
                 case 'get_printer_status':
                     return await this.getPrinterStatus(printerId);
                 
+                case 'upload_gcode':
+                    return await this.uploadGCode(printerId, data.filePath);
+                
                 case 'start_print':
-                    return await this.startPrint(printerId, data);
+                    return await this.startPrint(printerId, data.fileName);
                 
                 case 'pause_print':
                     return await this.pausePrint(printerId);
@@ -121,25 +126,19 @@ class FabricationManager {
                 case 'cancel_print':
                     return await this.cancelPrint(printerId);
                 
-                case 'preheat_printer':
-                    return await this.preheatPrinter(printerId, data.material);
-                
-                case 'upload_gcode':
-                    return await this.uploadGCode(printerId, data.filePath);
-                
                 case 'get_print_queue':
                     return { success: true, data: this.printQueue };
                 
-                case 'estimate_print_time':
-                    return await this.estimatePrintTime(data.filePath);
+                case 'get_printer_info':
+                    return await this.getPrinterInfo(printerId);
                 
-                case 'check_material_compatibility':
-                    return await this.checkMaterialCompatibility(data.material, data.settings);
+                case 'check_filament':
+                    return await this.checkFilament(printerId);
                 
                 default:
                     return {
                         success: false,
-                        error: `Unknown fabrication command: ${command}`
+                        error: `Unknown fabrication command: ${command}. Available commands: get_printer_status, upload_gcode, start_print, pause_print, resume_print, cancel_print, check_filament`
                     };
             }
             
@@ -211,7 +210,7 @@ class FabricationManager {
         };
     }
 
-    async startPrint(printerId, printData) {
+    async startPrint(printerId, fileName) {
         try {
             const printer = this.bambuPrinters.get(printerId);
             if (!printer) {
@@ -221,47 +220,65 @@ class FabricationManager {
                 };
             }
 
-            const { filePath, material = 'PLA', settings = {} } = printData;
-            
-            // Validate file exists
-            if (!fs.existsSync(filePath)) {
+            // Simple validation - let the printer handle the rest
+            if (!fileName) {
                 return {
                     success: false,
-                    error: `G-code file not found: ${filePath}`
+                    error: `No file specified for printing`
                 };
             }
 
-            // Safety check - require confirmation for long prints
-            const estimatedTime = await this.estimatePrintTime(filePath);
-            if (this.config.safety.require_confirmation && estimatedTime.hours > 4) {
+            // Check printer status including filament before starting
+            const status = await printer.getStatus();
+            if (!status || status.error) {
                 return {
                     success: false,
-                    error: `Print estimated to take ${estimatedTime.hours} hours. Please confirm this long print job.`,
+                    error: `Cannot communicate with printer: ${status?.error || 'Unknown error'}`
+                };
+            }
+
+            // Check for filament availability (P1S without AMS)
+            const filamentCheck = this.checkFilamentStatus(status);
+            if (!filamentCheck.hasFilament) {
+                return {
+                    success: false,
+                    error: `No filament detected on ${printer.name}. Please load filament before printing.`,
+                    needsFilament: true,
+                    filamentStatus: filamentCheck
+                };
+            }
+
+            // Check if printer is ready to print
+            if (!this.isPrinterReady(status)) {
+                return {
+                    success: false,
+                    error: `Printer is not ready. Current state: ${status.state || 'unknown'}`,
+                    printerStatus: status
+                };
+            }
+
+            // Safety confirmation for any print job
+            if (this.config.safety.require_confirmation) {
+                return {
+                    success: false,
+                    error: `Print requires confirmation. Use voice command "GPT, confirm print" or UI confirmation.`,
                     needsConfirmation: true,
-                    estimatedTime: estimatedTime
+                    fileName: fileName,
+                    printer: printer.name,
+                    filamentStatus: filamentCheck
                 };
             }
 
-            // Check material compatibility
-            const materialCheck = await this.checkMaterialCompatibility(material, settings);
-            if (!materialCheck.compatible) {
-                return {
-                    success: false,
-                    error: `Material incompatibility: ${materialCheck.issues.join(', ')}`
-                };
-            }
-
-            // Start the print
-            const result = await printer.startPrint(filePath, material, settings);
+            // Start the print - let Bambu Studio/printer handle material settings, time estimation, etc.
+            const result = await printer.startPrint(fileName);
             
             if (result.success) {
                 this.currentPrintJob = {
                     printerId: printerId,
-                    filePath: filePath,
-                    material: material,
+                    fileName: fileName,
                     startTime: new Date(),
-                    estimatedTime: estimatedTime,
-                    status: 'printing'
+                    status: 'printing',
+                    filamentType: filamentCheck.detectedMaterial || 'unknown'
                 };
             }
 
@@ -273,6 +290,40 @@ class FabricationManager {
                 error: error.message
             };
         }
+    }
+
+    checkFilamentStatus(printerStatus) {
+        // For P1S without AMS, check direct filament sensor
+        const filamentDetected = printerStatus.filament_detected !== false; // Default to true if not specified
+        const hasFilament = printerStatus.has_filament !== false;
+        
+        // Bambu P1S reports filament status in various ways
+        const filamentPresent = filamentDetected && hasFilament;
+        
+        return {
+            hasFilament: filamentPresent,
+            detectedMaterial: printerStatus.current_material || null,
+            filamentSensorWorking: printerStatus.filament_sensor_enabled !== false,
+            recommendation: filamentPresent ? 
+                'Filament detected and ready' : 
+                'Please load filament into the printer before starting print'
+        };
+    }
+
+    isPrinterReady(status) {
+        const readyStates = ['idle', 'ready', 'standby'];
+        const busyStates = ['printing', 'paused', 'heating', 'homing'];
+        const errorStates = ['error', 'offline', 'fault'];
+        
+        if (errorStates.includes(status.state)) {
+            return false;
+        }
+        
+        if (busyStates.includes(status.state)) {
+            return false;
+        }
+        
+        return readyStates.includes(status.state) || !status.state; // Default to ready if state unknown
     }
 
     async pausePrint(printerId) {
@@ -356,7 +407,7 @@ class FabricationManager {
         }
     }
 
-    async preheatPrinter(printerId, material) {
+    async getPrinterInfo(printerId) {
         try {
             const printer = this.bambuPrinters.get(printerId);
             if (!printer) {
@@ -366,15 +417,7 @@ class FabricationManager {
                 };
             }
 
-            const materialSettings = this.config.materials[material];
-            if (!materialSettings) {
-                return {
-                    success: false,
-                    error: `Unknown material: ${material}`
-                };
-            }
-
-            return await printer.preheat(materialSettings.nozzle_temp, materialSettings.bed_temp);
+            return await printer.getInfo();
             
         } catch (error) {
             return {
@@ -384,106 +427,7 @@ class FabricationManager {
         }
     }
 
-    async estimatePrintTime(filePath) {
-        try {
-            // Simple G-code analysis for time estimation
-            const gcode = fs.readFileSync(filePath, 'utf8');
-            const lines = gcode.split('\n');
-            
-            let totalTime = 0; // in seconds
-            let currentFeedrate = 1500; // mm/min default
-            
-            for (const line of lines) {
-                if (line.startsWith('; estimated printing time')) {
-                    // Check for slicer-provided time estimate
-                    const timeMatch = line.match(/(\d+)h\s*(\d+)m\s*(\d+)s/);
-                    if (timeMatch) {
-                        const hours = parseInt(timeMatch[1]) || 0;
-                        const minutes = parseInt(timeMatch[2]) || 0;
-                        const seconds = parseInt(timeMatch[3]) || 0;
-                        totalTime = hours * 3600 + minutes * 60 + seconds;
-                        break;
-                    }
-                }
-                
-                // Basic movement analysis
-                if (line.startsWith('G1') || line.startsWith('G0')) {
-                    const feedMatch = line.match(/F(\d+)/);
-                    if (feedMatch) {
-                        currentFeedrate = parseInt(feedMatch[1]);
-                    }
-                    
-                    // Rough estimation based on movement commands
-                    totalTime += 0.1; // Very rough estimate
-                }
-            }
-            
-            const hours = Math.floor(totalTime / 3600);
-            const minutes = Math.floor((totalTime % 3600) / 60);
-            
-            return {
-                success: true,
-                totalSeconds: totalTime,
-                hours: hours,
-                minutes: minutes,
-                formatted: `${hours}h ${minutes}m`
-            };
-            
-        } catch (error) {
-            return {
-                success: false,
-                error: error.message,
-                estimated: 'unknown'
-            };
-        }
-    }
-
-    async checkMaterialCompatibility(material, settings) {
-        try {
-            const materialConfig = this.config.materials[material];
-            if (!materialConfig) {
-                return {
-                    compatible: false,
-                    issues: [`Unknown material: ${material}`]
-                };
-            }
-
-            const issues = [];
-            
-            // Check temperature settings
-            if (settings.nozzle_temperature) {
-                const tempDiff = Math.abs(settings.nozzle_temperature - materialConfig.nozzle_temp);
-                if (tempDiff > 20) {
-                    issues.push(`Nozzle temperature ${settings.nozzle_temperature}°C differs significantly from recommended ${materialConfig.nozzle_temp}°C`);
-                }
-            }
-
-            if (settings.bed_temperature) {
-                const bedTempDiff = Math.abs(settings.bed_temperature - materialConfig.bed_temp);
-                if (bedTempDiff > 15) {
-                    issues.push(`Bed temperature ${settings.bed_temperature}°C differs significantly from recommended ${materialConfig.bed_temp}°C`);
-                }
-            }
-
-            return {
-                compatible: issues.length === 0,
-                issues: issues,
-                recommendations: {
-                    nozzle_temp: materialConfig.nozzle_temp,
-                    bed_temp: materialConfig.bed_temp,
-                    speed_modifier: materialConfig.speed_modifier
-                }
-            };
-            
-        } catch (error) {
-            return {
-                compatible: false,
-                issues: [`Compatibility check failed: ${error.message}`]
-            };
-        }
-    }
-
-    async uploadGCode(printerId, filePath) {
+    async checkFilament(printerId) {
         try {
             const printer = this.bambuPrinters.get(printerId);
             if (!printer) {
@@ -493,14 +437,27 @@ class FabricationManager {
                 };
             }
 
-            if (!fs.existsSync(filePath)) {
+            const status = await printer.getStatus();
+            if (!status || status.error) {
                 return {
                     success: false,
-                    error: `File not found: ${filePath}`
+                    error: `Cannot communicate with printer: ${status?.error || 'Unknown error'}`
                 };
             }
 
-            return await printer.uploadFile(filePath);
+            const filamentCheck = this.checkFilamentStatus(status);
+            
+            return {
+                success: true,
+                data: {
+                    printerName: printer.name,
+                    hasFilament: filamentCheck.hasFilament,
+                    detectedMaterial: filamentCheck.detectedMaterial,
+                    recommendation: filamentCheck.recommendation,
+                    filamentSensorWorking: filamentCheck.filamentSensorWorking,
+                    readyToPrint: this.isPrinterReady(status) && filamentCheck.hasFilament
+                }
+            };
             
         } catch (error) {
             return {
@@ -535,7 +492,7 @@ class FabricationManager {
     }
 }
 
-// Bambu Lab Printer API wrapper
+// Bambu Lab Printer API wrapper for P1S
 class BambuLabPrinter {
     constructor(config) {
         this.id = config.id;
@@ -549,7 +506,7 @@ class BambuLabPrinter {
 
     async connect() {
         try {
-            // Test connection to printer
+            // Test connection to printer using Bambu Lab's actual API endpoint
             const response = await axios.get(`${this.baseURL}/v1/status`, {
                 timeout: 5000,
                 headers: {
@@ -558,7 +515,7 @@ class BambuLabPrinter {
             });
             
             this.isConnected = true;
-            return { success: true };
+            return { success: true, message: `Connected to ${this.name}` };
             
         } catch (error) {
             this.isConnected = false;
@@ -574,23 +531,71 @@ class BambuLabPrinter {
                 }
             });
             
-            return response.data;
+            // For P1S without AMS, enhance status with filament detection
+            const status = response.data;
+            
+            // Return the printer's actual status with enhanced filament info
+            return {
+                ...status,
+                printer_name: this.name,
+                printer_id: this.id,
+                connection_status: 'connected',
+                // P1S filament detection fields (these may vary based on actual API)
+                filament_detected: status.filament_detected ?? true, // Default to true if not reported
+                has_filament: status.has_filament ?? true,
+                current_material: status.current_material || null,
+                filament_sensor_enabled: status.filament_sensor_enabled ?? true,
+                // Additional helpful status
+                bed_temperature: status.bed_temperature || 0,
+                nozzle_temperature: status.nozzle_temperature || 0,
+                state: status.state || 'unknown'
+            };
             
         } catch (error) {
             return {
                 error: error.message,
-                state: 'disconnected'
+                state: 'disconnected',
+                printer_name: this.name,
+                printer_id: this.id,
+                connection_status: 'error',
+                filament_detected: false,
+                has_filament: false
             };
         }
     }
 
-    async startPrint(filePath, material, settings) {
+    async getInfo() {
         try {
-            // This is a simplified example - actual Bambu Lab API calls would be more complex
+            const response = await axios.get(`${this.baseURL}/v1/info`, {
+                headers: {
+                    'Authorization': `Bearer ${this.accessCode}`
+                }
+            });
+            
+            return {
+                success: true,
+                data: {
+                    ...response.data,
+                    configured_name: this.name,
+                    configured_id: this.id,
+                    ip_address: this.ip
+                }
+            };
+            
+        } catch (error) {
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    async startPrint(fileName) {
+        try {
+            // Start print using file already on the printer
             const response = await axios.post(`${this.baseURL}/v1/print`, {
-                file: path.basename(filePath),
-                material: material,
-                settings: settings
+                filename: fileName,
+                // Let the printer use its own settings
             }, {
                 headers: {
                     'Authorization': `Bearer ${this.accessCode}`,
@@ -600,8 +605,8 @@ class BambuLabPrinter {
             
             return {
                 success: true,
-                message: `Print started on ${this.name}`,
-                jobId: response.data.jobId
+                message: `Print started on ${this.name}: ${fileName}`,
+                jobId: response.data?.jobId || 'unknown'
             };
             
         } catch (error) {
@@ -675,48 +680,30 @@ class BambuLabPrinter {
         }
     }
 
-    async preheat(nozzleTemp, bedTemp) {
-        try {
-            await axios.post(`${this.baseURL}/v1/preheat`, {
-                nozzle_temperature: nozzleTemp,
-                bed_temperature: bedTemp
-            }, {
-                headers: {
-                    'Authorization': `Bearer ${this.accessCode}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-            
-            return {
-                success: true,
-                message: `Preheating ${this.name} - Nozzle: ${nozzleTemp}°C, Bed: ${bedTemp}°C`
-            };
-            
-        } catch (error) {
-            return {
-                success: false,
-                error: `Failed to preheat: ${error.message}`
-            };
-        }
-    }
-
     async uploadFile(filePath) {
         try {
+            // Upload G-code file to the printer's storage
             const fileData = fs.readFileSync(filePath);
+            const fileName = path.basename(filePath);
+            
+            // Use form data for file upload
+            const FormData = require('form-data');
             const formData = new FormData();
-            formData.append('file', fileData, path.basename(filePath));
+            formData.append('file', fileData, fileName);
             
             const response = await axios.post(`${this.baseURL}/v1/upload`, formData, {
                 headers: {
                     'Authorization': `Bearer ${this.accessCode}`,
                     ...formData.getHeaders()
-                }
+                },
+                timeout: 30000 // 30 second timeout for file uploads
             });
             
             return {
                 success: true,
-                message: `File uploaded to ${this.name}`,
-                fileId: response.data.fileId
+                message: `File uploaded to ${this.name}: ${fileName}`,
+                fileName: fileName,
+                fileId: response.data?.fileId || fileName
             };
             
         } catch (error) {
@@ -729,6 +716,7 @@ class BambuLabPrinter {
 
     async disconnect() {
         this.isConnected = false;
+        return { success: true, message: `Disconnected from ${this.name}` };
     }
 }
 

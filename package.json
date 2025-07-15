@@ -6,9 +6,13 @@
   "scripts": {
     "start": "electron src/main.js",
     "dev": "electron src/main.js --dev",
+    "dev-clean": "electron src/main.js",
     "build": "electron-builder",
     "test": "jest",
-    "setup": "node scripts/setup.js"
+    "setup": "node scripts/setup.js",
+    "cleanup": "powershell -ExecutionPolicy Bypass -File cleanup.ps1",
+    "fresh": "npm run cleanup && npm run dev",
+    "fresh-clean": "npm run cleanup && npm run dev-clean"
   },
   "keywords": [
     "ai",
@@ -20,26 +24,26 @@
   "author": "Your Name",
   "license": "MIT",
   "devDependencies": {
-    "electron": "^28.0.0",
+    "electron": "^28.3.3",
     "electron-builder": "^24.6.4",
     "jest": "^29.7.0"
   },
   "dependencies": {
-    "openai": "^4.26.0",
-    "sqlite3": "^5.1.6",
-    "express": "^4.18.2",
-    "ws": "^8.15.1",
     "axios": "^1.6.2",
-    "node-cron": "^3.0.3",
     "bcrypt": "^5.1.1",
-    "keytar": "^7.9.0",
-    "node-record-lpcm16": "^1.0.1",
-    "play-sound": "^1.1.6",
-    "chokidar": "^3.5.3",
     "cheerio": "^1.0.0-rc.12",
+    "chokidar": "^3.5.3",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "keytar": "^7.9.0",
+    "node-cron": "^3.0.3",
+    "node-record-lpcm16": "^1.0.1",
+    "openai": "^4.26.0",
+    "play-sound": "^1.1.6",
     "puppeteer": "^21.6.1",
     "socket.io": "^4.7.4",
-    "dotenv": "^16.3.1"
+    "sqlite3": "^5.1.6",
+    "ws": "^8.15.1"
   },
   "build": {
     "appId": "com.yourname.gpt",

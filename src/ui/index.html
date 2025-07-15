@@ -260,6 +260,81 @@
             100% { transform: scale(1); }
         }
 
+        .voice-feedback {
+            margin-top: 15px;
+            padding: 15px;
+            background: rgba(0, 212, 255, 0.1);
+            border-radius: 10px;
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            min-height: 120px;
+        }
+
+        .recording-indicator {
+            display: none;
+            text-align: center;
+            color: var(--error-color);
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .recording-indicator.active {
+            display: block;
+            animation: recording-pulse 0.8s infinite;
+        }
+
+        @keyframes recording-pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .transcript-preview {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            padding: 10px;
+            min-height: 60px;
+            margin-bottom: 10px;
+            color: var(--text-secondary);
+            font-style: italic;
+            border: 1px solid #333;
+        }
+
+        .transcript-preview.has-content {
+            color: var(--text-primary);
+            font-style: normal;
+            border-color: var(--success-color);
+        }
+
+        .voice-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .action-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 5px;
+            background: var(--primary-color);
+            color: white;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .action-btn:hover {
+            background: var(--secondary-color);
+            transform: translateY(-2px);
+        }
+
+        .action-btn.success {
+            background: var(--success-color);
+        }
+
+        .action-btn.danger {
+            background: var(--error-color);
+        }
+
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -318,7 +393,7 @@
         }
 
         .hidden {
-            display: none;
+            display: none !important;
         }
 
         .loading {
@@ -339,6 +414,460 @@
 
         @keyframes spin {
             to { transform: rotate(360deg); }
+        }
+
+        /* Enhanced Project Visualizations */
+        .tab-container {
+            display: flex;
+            border-bottom: 2px solid #333;
+            margin-bottom: 20px;
+        }
+
+        .tab-btn {
+            padding: 12px 20px;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .tab-btn.active {
+            color: var(--primary-color);
+            border-bottom-color: var(--primary-color);
+        }
+
+        .tab-btn:hover {
+            color: var(--text-primary);
+        }
+
+        .project-view {
+            min-height: 400px;
+        }
+
+        /* Timeline Visualization */
+        .timeline-container {
+            width: 100%;
+        }
+
+        .timeline-header {
+            margin-bottom: 30px;
+        }
+
+        .timeline-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: var(--background-secondary);
+            border-radius: 8px;
+        }
+
+        .timeline-content {
+            position: relative;
+            padding: 20px 0;
+        }
+
+        .timeline-track {
+            position: relative;
+            background: linear-gradient(90deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            height: 4px;
+            border-radius: 2px;
+            margin: 20px 0;
+        }
+
+        .timeline-event {
+            position: absolute;
+            background: var(--background-secondary);
+            border: 2px solid var(--primary-color);
+            border-radius: 8px;
+            padding: 10px;
+            min-width: 200px;
+            transform: translateX(-50%);
+            cursor: pointer;
+        }
+
+        .timeline-event:hover {
+            background: rgba(0, 212, 255, 0.1);
+        }
+
+        .timeline-event::before {
+            content: '';
+            position: absolute;
+            bottom: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 8px;
+            height: 8px;
+            background: var(--primary-color);
+            border-radius: 50%;
+        }
+
+        .timeline-event-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .timeline-event-date {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        /* Kanban Board */
+        .kanban-board {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            min-height: 500px;
+        }
+
+        .kanban-column {
+            background: var(--background-secondary);
+            border-radius: 8px;
+            padding: 15px;
+        }
+
+        .kanban-column h4 {
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #333;
+        }
+
+        .task-list {
+            min-height: 400px;
+        }
+
+        .task-card {
+            background: var(--background-dark);
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .task-card:hover {
+            border-color: var(--primary-color);
+            transform: translateY(-2px);
+        }
+
+        .task-title {
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+
+        .task-meta {
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        /* Inventory Grid */
+        .inventory-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .inventory-item {
+            background: var(--background-secondary);
+            border-radius: 8px;
+            padding: 20px;
+            border: 1px solid #333;
+            transition: all 0.3s ease;
+        }
+
+        .inventory-item:hover {
+            border-color: var(--primary-color);
+            transform: translateY(-2px);
+        }
+
+        .inventory-item.low-stock {
+            border-color: var(--error-color);
+        }
+
+        .inventory-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 15px;
+        }
+
+        .inventory-name {
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .inventory-category {
+            background: var(--primary-color);
+            color: var(--background-dark);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .inventory-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .inventory-stat {
+            text-align: center;
+        }
+
+        .inventory-stat-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+
+        .inventory-stat-label {
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .low-stock-warning {
+            background: rgba(255, 68, 68, 0.1);
+            border: 1px solid var(--error-color);
+            color: var(--error-color);
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            text-align: center;
+        }
+
+        /* Setup Modal Styles */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: var(--background-secondary);
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90%;
+            overflow-y: auto;
+            border: 1px solid #333;
+        }
+
+        .modal-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .modal-header h2 {
+            color: var(--primary-color);
+            margin-bottom: 10px;
+        }
+
+        .modal-body {
+            margin-bottom: 30px;
+        }
+
+        .setup-step {
+            margin-bottom: 25px;
+            padding: 20px;
+            background: var(--background-dark);
+            border-radius: 8px;
+            border: 1px solid #333;
+        }
+
+        .setup-step h3 {
+            color: var(--primary-color);
+            margin-bottom: 15px;
+        }
+
+        .setup-step ol {
+            margin-left: 20px;
+            color: var(--text-secondary);
+        }
+
+        .setup-step ol li {
+            margin-bottom: 8px;
+        }
+
+        .setup-step a {
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+
+        .setup-step a:hover {
+            text-decoration: underline;
+        }
+
+        .modal-footer {
+            display: flex;
+            gap: 15px;
+            justify-content: flex-end;
+        }
+
+        .setting-item {
+            margin-bottom: 20px;
+        }
+
+        .setting-item label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .setting-item input,
+        .setting-item select {
+            width: 100%;
+            margin-bottom: 0;
+        }
+
+        .setting-item .btn {
+            margin-left: 10px;
+            padding: 8px 15px;
+        }
+
+        .settings-panel {
+            max-width: 800px;
+        }
+
+        .setting-section {
+            background: var(--background-secondary);
+            padding: 25px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+            border: 1px solid #333;
+        }
+
+        .setting-section h4 {
+            color: var(--primary-color);
+            margin-bottom: 20px;
+            font-size: 18px;
+        }
+
+        .help-text {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 5px;
+        }
+
+        .test-result {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+
+        .test-result.success {
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid var(--success-color);
+            color: var(--success-color);
+        }
+
+        .test-result.error {
+            background: rgba(255, 68, 68, 0.1);
+            border: 1px solid var(--error-color);
+            color: var(--error-color);
+        }
+
+        /* Loading Components */
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            border-radius: 8px;
+        }
+
+        .loading-overlay.hidden {
+            display: none;
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #333;
+            border-top: 4px solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-bar {
+            width: 200px;
+            height: 4px;
+            background: #333;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .loading-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary-color), #00ff88);
+            border-radius: 2px;
+            animation: loading-slide 2s ease-in-out infinite;
+            width: 30%;
+        }
+
+        @keyframes loading-slide {
+            0% { transform: translateX(-100%); }
+            50% { transform: translateX(200%); }
+            100% { transform: translateX(400%); }
+        }
+
+        .loading-text {
+            color: var(--text-primary);
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+
+        .loading-time {
+            color: var(--text-secondary);
+            font-size: 12px;
+        }
+
+        .performance-indicator {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: var(--text-primary);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 11px;
+            z-index: 9999;
+            display: none;
+        }
+
+        .performance-indicator.show {
+            display: block;
+        }
+
+        .page-content {
+            position: relative;
         }
     </style>
 </head>
@@ -380,8 +909,22 @@
             <div class="voice-control">
                 <button class="voice-button" id="voiceButton">🎤</button>
                 <div id="voiceStatus">Ready to listen</div>
+                <div class="voice-feedback" id="voiceFeedback">
+                    <div class="recording-indicator" id="recordingIndicator"></div>
+                    <div class="transcript-preview" id="transcriptPreview"></div>
+                    <div class="voice-actions" id="voiceActions">
+                        <button class="action-btn" id="sendToChat" style="display: none;">Send to Chat</button>
+                        <button class="action-btn" id="clearTranscript" style="display: none;">Clear</button>
+                        <button class="action-btn" id="textFallback" style="display: none;">Type Instead</button>
+                    </div>
+                </div>
             </div>
         </aside>
+        
+        <!-- Performance Indicator -->
+        <div id="performance-indicator" class="performance-indicator">
+            <div id="performance-text">Loading...</div>
+        </div>
         
         <main class="main-content">
             <header class="header">
@@ -395,13 +938,22 @@
             <div class="content-area">
                 <!-- Dashboard Content -->
                 <div id="dashboard-content" class="page-content">
+                    <div id="dashboard-loading" class="loading-overlay hidden">
+                        <div class="loading-spinner"></div>
+                        <div class="loading-bar">
+                            <div class="loading-bar-fill"></div>
+                        </div>
+                        <div class="loading-text">Loading Dashboard...</div>
+                        <div class="loading-time" id="dashboard-time">0ms</div>
+                    </div>
+                    
                     <div class="stats-grid">
                         <div class="stat-card">
                             <div class="stat-value" id="activeProjects">0</div>
                             <div class="stat-label">Active Projects</div>
                         </div>
                         <div class="stat-card">
-                            <div class="stat-value" id="completedTasks">0</div>
+                            <div class="stat-value" id="completedTasksCount">0</div>
                             <div class="stat-label">Completed Tasks</div>
                         </div>
                         <div class="stat-card">
@@ -424,6 +976,15 @@
                 
                 <!-- Chat Content -->
                 <div id="chat-content" class="page-content hidden">
+                    <div id="chat-loading" class="loading-overlay hidden">
+                        <div class="loading-spinner"></div>
+                        <div class="loading-bar">
+                            <div class="loading-bar-fill"></div>
+                        </div>
+                        <div class="loading-text">Loading Chat History...</div>
+                        <div class="loading-time" id="chat-time">0ms</div>
+                    </div>
+                    
                     <div class="chat-container">
                         <div class="chat-messages" id="chatMessages">
                             <div class="message gpt">
@@ -436,19 +997,88 @@
                 
                 <!-- Projects Content -->
                 <div id="projects-content" class="page-content hidden">
+                    <div id="projects-loading" class="loading-overlay hidden">
+                        <div class="loading-spinner"></div>
+                        <div class="loading-bar">
+                            <div class="loading-bar-fill"></div>
+                        </div>
+                        <div class="loading-text">Loading Projects...</div>
+                        <div class="loading-time" id="projects-time">0ms</div>
+                    </div>
+                    
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                         <h3>Your Projects</h3>
                         <button class="btn btn-primary" id="newProjectBtn">New Project</button>
                     </div>
-                    <div id="projectsList" class="project-list">
-                        <div class="loading">
-                            <div class="spinner"></div>
+                    
+                    <!-- Project View Tabs -->
+                    <div class="tab-container" style="margin-bottom: 20px;">
+                        <button class="tab-btn active" data-view="list">📋 List View</button>
+                        <button class="tab-btn" data-view="timeline">📅 Timeline View</button>
+                        <button class="tab-btn" data-view="kanban">📌 Kanban Board</button>
+                    </div>
+                    
+                    <!-- List View -->
+                    <div id="projects-list-view" class="project-view">
+                        <div id="projectsList" class="project-list">
+                            <div class="loading">
+                                <div class="spinner"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Timeline View -->
+                    <div id="projects-timeline-view" class="project-view hidden">
+                        <div class="timeline-container">
+                            <div class="timeline-header">
+                                <div class="timeline-nav">
+                                    <button class="btn btn-secondary" id="timelinePrev">← Previous</button>
+                                    <span id="timelineDate">Loading...</span>
+                                    <button class="btn btn-secondary" id="timelineNext">Next →</button>
+                                </div>
+                            </div>
+                            <div id="timelineContent" class="timeline-content">
+                                <div class="loading">
+                                    <div class="spinner"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Kanban View -->
+                    <div id="projects-kanban-view" class="project-view hidden">
+                        <div class="kanban-board">
+                            <div class="kanban-column">
+                                <h4>📋 Planning</h4>
+                                <div id="planningTasks" class="task-list"></div>
+                            </div>
+                            <div class="kanban-column">
+                                <h4>🔄 In Progress</h4>
+                                <div id="progressTasks" class="task-list"></div>
+                            </div>
+                            <div class="kanban-column">
+                                <h4>🔍 Review</h4>
+                                <div id="reviewTasks" class="task-list"></div>
+                            </div>
+                            <div class="kanban-column">
+                                <h4>✅ Completed</h4>
+                                <div id="completedTasks" class="task-list"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
                 
                 <!-- Fabrication Content -->
                 <div id="fabrication-content" class="page-content hidden">
+                    <div id="fabrication-loading" class="loading-overlay hidden">
+                        <div class="loading-spinner"></div>
+                        <div class="loading-bar">
+                            <div class="loading-bar-fill"></div>
+                        </div>
+                        <div class="loading-text">Loading 3D Printer Status...</div>
+                        <div class="loading-time" id="fabrication-time">0ms</div>
+                    </div>
+                    
                     <h3 style="margin-bottom: 20px;">3D Printer Status</h3>
                     <div id="printerStatus" class="stats-grid">
                         <div class="stat-card">
@@ -458,10 +1088,58 @@
                     </div>
                 </div>
                 
-                <!-- Other content sections will be populated dynamically -->
+                <!-- Inventory Content -->
                 <div id="inventory-content" class="page-content hidden">
-                    <h3>Inventory Management</h3>
-                    <p>Inventory management features coming soon...</p>
+                    <div id="inventory-loading" class="loading-overlay hidden">
+                        <div class="loading-spinner"></div>
+                        <div class="loading-bar">
+                            <div class="loading-bar-fill"></div>
+                        </div>
+                        <div class="loading-text">Loading Inventory...</div>
+                        <div class="loading-time" id="inventory-time">0ms</div>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h3>Inventory Management</h3>
+                        <button class="btn btn-primary" id="newInventoryBtn">Add Item</button>
+                    </div>
+                    
+                    <div class="stats-grid" style="margin-bottom: 30px;">
+                        <div class="stat-card">
+                            <div class="stat-value" id="totalItems">0</div>
+                            <div class="stat-label">Total Items</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="lowStockItems">0</div>
+                            <div class="stat-label">Low Stock Alerts</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="inventoryValue">$0</div>
+                            <div class="stat-label">Total Value</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="categories">0</div>
+                            <div class="stat-label">Categories</div>
+                        </div>
+                    </div>
+                    
+                    <div class="inventory-filters" style="margin-bottom: 20px;">
+                        <select id="categoryFilter" class="input-field" style="width: 200px; margin-right: 10px;">
+                            <option value="">All Categories</option>
+                            <option value="filament">3D Printing Filament</option>
+                            <option value="electronics">Electronics</option>
+                            <option value="tools">Tools</option>
+                            <option value="hardware">Hardware</option>
+                            <option value="consumables">Consumables</option>
+                        </select>
+                        <button class="btn btn-secondary" id="refreshInventoryBtn">Refresh</button>
+                    </div>
+                    
+                    <div id="inventoryList" class="inventory-grid">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                        </div>
+                    </div>
                 </div>
                 
                 <div id="notes-content" class="page-content hidden">
@@ -475,7 +1153,81 @@
                 
                 <div id="settings-content" class="page-content hidden">
                     <h3>Settings</h3>
-                    <p>Settings panel coming soon...</p>
+                    <div class="settings-panel">
+                        <div class="setting-section">
+                            <h4>OpenAI Configuration</h4>
+                            <div class="setting-item">
+                                <label for="apiKeyInput">OpenAI API Key:</label>
+                                <input type="password" id="apiKeyInput" class="input-field" placeholder="sk-...">
+                                <button class="btn btn-secondary" id="toggleApiKey">Show</button>
+                            </div>
+                            <div class="setting-item">
+                                <label for="modelSelect">GPT Model:</label>
+                                <select id="modelSelect" class="input-field">
+                                    <option value="gpt-4">GPT-4 (Recommended)</option>
+                                    <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                                </select>
+                            </div>
+                            <button class="btn btn-primary" id="saveSettingsBtn">Save Configuration</button>
+                        </div>
+                        
+                        <div class="setting-section">
+                            <h4>Printer Configuration</h4>
+                            <div class="setting-item">
+                                <label for="printerIP">Bambu Lab P1S IP Address:</label>
+                                <input type="text" id="printerIP" class="input-field" placeholder="192.168.1.100">
+                            </div>
+                            <div class="setting-item">
+                                <label for="printerAccessCode">Access Code:</label>
+                                <input type="text" id="printerAccessCode" class="input-field" placeholder="12345678">
+                            </div>
+                            <button class="btn btn-primary" id="savePrinterBtn">Save Printer Settings</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Setup Modal -->
+                <div id="setupModal" class="modal hidden">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h2>🚀 Welcome to GPT AI Agent!</h2>
+                            <p>Let's get you set up with your OpenAI API key to activate your AI assistant.</p>
+                        </div>
+                        
+                        <div class="modal-body">
+                            <div class="setup-step">
+                                <h3>Step 1: Get Your OpenAI API Key</h3>
+                                <p>If you don't have an OpenAI API key yet:</p>
+                                <ol>
+                                    <li>Go to <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI API Keys</a></li>
+                                    <li>Sign in or create an account</li>
+                                    <li>Click "Create new secret key"</li>
+                                    <li>Copy the key (it starts with "sk-")</li>
+                                </ol>
+                            </div>
+                            
+                            <div class="setup-step">
+                                <h3>Step 2: Enter Your API Key</h3>
+                                <div class="setting-item">
+                                    <label for="setupApiKey">OpenAI API Key:</label>
+                                    <input type="password" id="setupApiKey" class="input-field" placeholder="sk-proj-...">
+                                    <button class="btn btn-secondary" id="toggleSetupApiKey">Show</button>
+                                </div>
+                                <p class="help-text">Your API key is stored securely and never shared.</p>
+                            </div>
+                            
+                            <div class="setup-step">
+                                <h3>Step 3: Test Connection</h3>
+                                <button class="btn btn-secondary" id="testApiKey">Test API Key</button>
+                                <div id="testResult" class="test-result hidden"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="modal-footer">
+                            <button class="btn btn-primary" id="completeSetup" disabled>Complete Setup</button>
+                            <button class="btn btn-secondary" id="skipSetup">Skip for Now</button>
+                        </div>
+                    </div>
                 </div>
             </div>
             
@@ -486,6 +1238,8 @@
         </main>
     </div>
 
+    <script src="performance.js"></script>
+    <script src="enhanced-nav.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

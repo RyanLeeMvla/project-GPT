@@ -1,0 +1,35 @@
+{
+  "system": {
+    "level": 4,
+    "capabilities": [
+      "*"
+    ],
+    "restrictions": []
+  },
+  "admin": {
+    "level": 3,
+    "capabilities": [
+      "project_management",
+      "fabrication_control",
+      "computer_operations",
+      "file_management",
+      "browser_control"
+    ],
+    "restrictions": [
+      "system_critical_operations"
+    ]
+  },
+  "user": {
+    "level": 2,
+    "capabilities": [
+      "project_management",
+      "note_taking",
+      "file_management_limited"
+    ],
+    "restrictions": [
+      "fabrication_control",
+      "system_operations",
+      "admin_functions"
+    ]
+  }
+}

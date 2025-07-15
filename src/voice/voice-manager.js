@@ -1,10 +1,9 @@
-const recorder = require('node-record-lpcm16');
 const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
 class VoiceManager {
-    constructor() {
+    constructor(mainWindow = null) {
         this.isListening = false;
         this.isRecording = false;
         this.voiceCallback = null;
@@ -12,6 +11,10 @@ class VoiceManager {
         this.isInitialized = false;
         this.silenceThreshold = 500; // ms of silence before processing
         this.maxRecordingLength = 10000; // 10 seconds max
+        this.recorder = null;
+        this.currentRecording = null;
+        this.currentRecognition = null; // For Web Speech API
+        this.mainWindow = mainWindow; // Reference to main window for IPC
     }
 
     async initialize() {
@@ -73,9 +76,19 @@ class VoiceManager {
         this.voiceCallback = callback;
         this.isListening = true;
         
-        console.log('🎤 Starting continuous voice listening...');
+        console.log('🎤 Starting voice listening...');
         
-        // Start the listening loop
+        // Try Web Speech API first (works better in Electron renderer)
+        if (typeof window !== 'undefined') {
+            const webSpeechStarted = this.startWebSpeechRecognition(callback);
+            if (webSpeechStarted) {
+                console.log('✅ Using Web Speech API for voice recognition');
+                return;
+            }
+        }
+        
+        // Fallback to Node.js recording method
+        console.log('🎤 Falling back to Node.js recording method...');
         this.startListeningLoop();
     }
 
@@ -107,62 +120,89 @@ class VoiceManager {
                 fs.mkdirSync(tempDir, { recursive: true });
             }
 
-            // Start recording with node-record-lpcm16
-            const recording = recorder.start({
-                sampleRateHertz: 16000,
-                threshold: 0,
-                verbose: false,
-                recordProgram: 'rec',
-                silence: '1.0'
-            });
+            // Use Windows-compatible recording with SoX or PowerShell
+            this.recordAudioWindows(audioFile)
+                .then(async () => {
+                    try {
+                        // Check if audio file has content
+                        if (fs.existsSync(audioFile)) {
+                            const stats = fs.statSync(audioFile);
+                            if (stats.size > 1000) { // Minimum file size check
+                                const transcription = await this.transcribeAudio(audioFile);
+                                
+                                if (transcription && this.containsWakeWord(transcription)) {
+                                    console.log(`🎤 Transcription: "${transcription}"`);
+                                    
+                                    if (this.voiceCallback) {
+                                        this.voiceCallback(transcription);
+                                    }
+                                }
+                            }
+                            
+                            // Clean up audio file
+                            fs.unlinkSync(audioFile);
+                        }
+                        resolve();
+                        
+                    } catch (error) {
+                        console.error('Error processing audio:', error);
+                        resolve();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error recording audio:', error);
+                    resolve();
+                });
+        });
+    }
 
-            const fileStream = fs.createWriteStream(audioFile);
-            recording.stream().pipe(fileStream);
+    async recordAudioWindows(outputFile) {
+        return new Promise((resolve, reject) => {
+            // Use PowerShell to record audio on Windows
+            const recordScript = `
+                Add-Type -AssemblyName System.Windows.Forms
+                Add-Type -AssemblyName System.Drawing
+                
+                # Try to use Windows Media Format SDK or fallback to SoundRecorder
+                try {
+                    $recorder = New-Object -ComObject "WMFSDKSample.WMRecorder"
+                    $recorder.SetProfile("Audio")
+                    $recorder.SetOutputFilename("${outputFile.replace(/\\/g, '\\\\')}")
+                    $recorder.Start()
+                    Start-Sleep -Seconds 3
+                    $recorder.Stop()
+                } catch {
+                    # Fallback: Use SoX if available, or create a dummy file
+                    if (Get-Command sox -ErrorAction SilentlyContinue) {
+                        & sox -t waveaudio default "${outputFile}" trim 0 3
+                    } else {
+                        # Create a minimal WAV file as fallback
+                        [byte[]]$wavHeader = @(0x52,0x49,0x46,0x46,0x24,0x08,0x00,0x00,0x57,0x41,0x56,0x45,0x66,0x6D,0x74,0x20,0x10,0x00,0x00,0x00,0x01,0x00,0x01,0x00,0x44,0xAC,0x00,0x00,0x88,0x58,0x01,0x00,0x02,0x00,0x10,0x00,0x64,0x61,0x74,0x61,0x00,0x08,0x00,0x00)
+                        [System.IO.File]::WriteAllBytes("${outputFile.replace(/\\/g, '\\\\')}", $wavHeader)
+                    }
+                }
+            `;
 
-            // Set timeout for max recording length
-            const timeout = setTimeout(() => {
-                recording.stop();
+            const powershell = spawn('powershell.exe', [
+                '-NoProfile',
+                '-ExecutionPolicy', 'Bypass',
+                '-Command', recordScript
+            ]);
+
+            let timeout = setTimeout(() => {
+                powershell.kill();
+                resolve();
             }, this.maxRecordingLength);
 
-            recording.stream().on('end', async () => {
+            powershell.on('close', (code) => {
                 clearTimeout(timeout);
-                
-                try {
-                    // Check if audio file has content
-                    const stats = fs.statSync(audioFile);
-                    if (stats.size > 1000) { // Minimum file size check
-                        const transcription = await this.transcribeAudio(audioFile);
-                        
-                        if (transcription && this.containsWakeWord(transcription)) {
-                            console.log(`🎤 Transcription: "${transcription}"`);
-                            
-                            if (this.voiceCallback) {
-                                this.voiceCallback(transcription);
-                            }
-                        }
-                    }
-                    
-                    // Clean up audio file
-                    fs.unlinkSync(audioFile);
-                    resolve();
-                    
-                } catch (error) {
-                    console.error('❌ Error processing audio:', error);
-                    // Clean up on error
-                    if (fs.existsSync(audioFile)) {
-                        fs.unlinkSync(audioFile);
-                    }
-                    resolve(); // Continue listening despite error
-                }
+                resolve();
             });
 
-            recording.stream().on('error', (error) => {
+            powershell.on('error', (error) => {
                 clearTimeout(timeout);
-                console.error('❌ Audio recording error:', error);
-                if (fs.existsSync(audioFile)) {
-                    fs.unlinkSync(audioFile);
-                }
-                resolve(); // Continue listening despite error
+                console.error('PowerShell recording error:', error);
+                resolve(); // Don't reject, just continue
             });
         });
     }
@@ -272,6 +312,9 @@ class VoiceManager {
 
         this.isListening = false;
         
+        // Stop Web Speech API if it's running
+        this.stopWebSpeechRecognition();
+        
         console.log('🔇 Voice listening stopped');
     }
 
@@ -296,6 +339,93 @@ class VoiceManager {
 
     getWakeWords() {
         return [...this.wakeWords];
+    }
+
+    // Simple Web Speech API method for browser/renderer process
+    startWebSpeechRecognition(callback) {
+        if (typeof window === 'undefined' || !window.webkitSpeechRecognition && !window.SpeechRecognition) {
+            console.error('Web Speech API not available');
+            return false;
+        }
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const recognition = new SpeechRecognition();
+        
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = 'en-US';
+        
+        recognition.onstart = () => {
+            console.log('🎤 Voice recognition started');
+        };
+        
+        recognition.onresult = (event) => {
+            let finalTranscript = '';
+            
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                const transcript = event.results[i][0].transcript;
+                if (event.results[i].isFinal) {
+                    finalTranscript += transcript;
+                }
+            }
+            
+            if (finalTranscript.trim()) {
+                console.log(`🎤 Recognized: "${finalTranscript}"`);
+                
+                // Send transcript to renderer process via IPC
+                if (this.mainWindow && this.mainWindow.webContents) {
+                    this.mainWindow.webContents.send('voice-transcript', {
+                        transcript: finalTranscript,
+                        timestamp: new Date().toISOString()
+                    });
+                }
+                
+                // Also call the original callback if provided for backwards compatibility
+                if (callback) {
+                    callback(finalTranscript);
+                }
+                
+                // Stop listening after successful recognition
+                this.stopListening();
+            }
+        };
+        
+        recognition.onerror = (event) => {
+            console.error('Speech recognition error:', event.error);
+            
+            // Send error to renderer process via IPC
+            if (this.mainWindow && this.mainWindow.webContents) {
+                this.mainWindow.webContents.send('voice-error', {
+                    error: event.error,
+                    message: `Speech recognition failed: ${event.error}`,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        };
+        
+        recognition.onend = () => {
+            console.log('🎤 Voice recognition ended');
+            // Restart if still listening
+            if (this.isListening) {
+                setTimeout(() => recognition.start(), 1000);
+            }
+        };
+        
+        try {
+            recognition.start();
+            this.currentRecognition = recognition;
+            return true;
+        } catch (error) {
+            console.error('Failed to start speech recognition:', error);
+            return false;
+        }
+    }
+
+    stopWebSpeechRecognition() {
+        if (this.currentRecognition) {
+            this.currentRecognition.stop();
+            this.currentRecognition = null;
+        }
     }
 }
 

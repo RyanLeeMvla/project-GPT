@@ -1,0 +1,56 @@
+{
+  "openai": {
+    "apiKey": "YOUR_OPENAI_API_KEY_HERE",
+    "model": "gpt-4",
+    "maxTokens": 1000,
+    "temperature": 0.7
+  },
+  "voice": {
+    "enabled": true,
+    "wakeWords": [
+      "hey gpt",
+      "okay gpt",
+      "gpt"
+    ],
+    "language": "en-US",
+    "timeout": 5000
+  },
+  "fabrication": {
+    "bambuLab": {
+      "enabled": false,
+      "ip": "",
+      "accessCode": "",
+      "serialNumber": ""
+    },
+    "printer": {
+      "type": "bambu_lab",
+      "model": "X1 Carbon",
+      "bedSize": {
+        "x": 256,
+        "y": 256,
+        "z": 256
+      }
+    }
+  },
+  "ui": {
+    "theme": "dark",
+    "notifications": true,
+    "autoSave": true,
+    "refreshInterval": 5000
+  },
+  "security": {
+    "enableAuditLog": true,
+    "maxLoginAttempts": 3,
+    "sessionTimeout": 3600000,
+    "allowedOrigins": [
+      "localhost",
+      "127.0.0.1"
+    ]
+  },
+  "database": {
+    "type": "sqlite",
+    "path": "./database/projects.db",
+    "backupInterval": 86400000,
+    "maxBackups": 7
+  }
+}

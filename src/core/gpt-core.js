@@ -70,6 +70,36 @@ CAPABILITIES:
 - Secure access management
 - Version control automation
 
+PROJECT MANAGEMENT ACTIONS:
+When users ask to create projects, use:
+{
+    "action": "project_management",
+    "parameters": {
+        "action": "create_project",
+        "data": {
+            "name": "Project Name",
+            "description": "Project description",
+            "type": "general|software|hardware|research",
+            "priority": 1-5
+        }
+    }
+}
+
+Available project_management actions:
+- create_project: Create new projects { name, description?, type?, priority?, deadline? }
+- update_project: Update existing projects { projectId, name?, description?, type?, priority?, deadline?, status? }
+- get_projects: List all projects { status?, limit? }
+- add_note: Add notes to projects { projectId, content, type? }
+- add_timeline_event: Add timeline events { title, description?, type?, project_id?, date? }
+- get_timeline: Get project timeline { projectId?, limit? }
+- move_project_stage: Move project between stages { projectId OR projectName, targetStage/targetStatus }
+  Valid stages: planning, in_progress, active, testing, review, completed, on_hold, cancelled
+- add_inventory: Add inventory items { name, category, quantity?, location?, notes? }
+- update_inventory: Update inventory { itemId, name?, category?, quantity?, location?, notes? }
+
+When user asks to move/change/update project status or stage, use move_project_stage action.
+You can identify projects by ID or name. Be flexible with stage names (e.g., "done" = "completed").
+
 TRIGGER PHRASES:
 - "GPT" - General commands and requests
 - "GPT, log that instance" - Note-taking with context awareness
@@ -188,14 +218,17 @@ CPU Usage: ${systemHealth.cpu}%
             
             // Execute any requested actions
             if (parsedResponse.action && parsedResponse.parameters) {
+                console.log('🔧 Executing action:', parsedResponse.action, 'with parameters:', parsedResponse.parameters);
                 const actionResult = await this.executeAction(
                     parsedResponse.action, 
                     parsedResponse.parameters
                 );
                 
+                console.log('🔧 Action result:', actionResult);
+                
                 // Update response with action result
                 if (actionResult.success) {
-                    parsedResponse.message += `\n\n✅ Action completed: ${actionResult.message}`;
+                    parsedResponse.message += `\n\n✅ Action completed: ${actionResult.message || 'Successfully completed'}`;
                 } else {
                     parsedResponse.message += `\n\n❌ Action failed: ${actionResult.error}`;
                 }
@@ -270,6 +303,7 @@ CPU Usage: ${systemHealth.cpu}%
     }
 
     async executeAction(actionType, parameters) {
+        console.log('🔧 executeAction called with:', { actionType, parameters });
         try {
             switch (actionType) {
                 case 'computer_operation':
