@@ -47,6 +47,7 @@ class GptApp {
             
             // Connect codeRewriter to GPT core for adaptive functionality
             this.gptCore.codeRewriter = this.codeRewriter;
+            this.gptCore.setCodeRewriter = (codeRewriter) => { this.gptCore.codeRewriter = codeRewriter; };
             
             // Connect code rewriter to GPT core for adaptive functionality
             this.gptCore.setCodeRewriter(this.codeRewriter);
@@ -85,6 +86,11 @@ class GptApp {
             .then(async () => {
                 console.log('✅ UI loaded successfully');
                 this.mainWindow.show(); // Ensure window is visible
+                
+                // Set main window reference for debug messaging
+                if (this.gptCore) {
+                    this.gptCore.setMainWindow(this.mainWindow);
+                }
                 
                 // Initialize voice manager now that window is ready
                 await this.initializeVoiceManager();
@@ -446,6 +452,121 @@ class GptApp {
             } catch (error) {
                 console.error('Error triggering restart:', error);
                 return { success: false, error: error.message };
+            }
+        });
+
+        // ========================
+        // AUTONOMOUS PERMANENT MODIFICATION HANDLERS
+        // ========================
+        
+        // Enable autonomous permanent code changes
+        ipcMain.handle('enable-autonomous-changes', async (event, conversation) => {
+            try {
+                console.log('🤖 AUTONOMOUS MODE: Enabling permanent code modifications...');
+                
+                // Add progress update callback to GPT core
+                this.gptCore.sendProgressUpdate = (step, progress, message) => {
+                    if (this.mainWindow) {
+                        this.mainWindow.webContents.send('rewriting-progress', {
+                            step, progress, message
+                        });
+                    }
+                };
+                
+                // Get full source context
+                const sourceContext = this.codeRewriter.getSourceContext();
+                
+                // Apply autonomous permanent changes with backup safety
+                const result = await this.codeRewriter.enableAutonomousPermanentChanges(
+                    conversation, 
+                    sourceContext, 
+                    this.gptCore
+                );
+                
+                // Clean up progress callback
+                delete this.gptCore.sendProgressUpdate;
+                
+                // Send completion notification
+                if (this.mainWindow) {
+                    this.mainWindow.webContents.send('rewriting-complete', {
+                        success: true,
+                        message: `${result.permanentChangesApplied || 0} changes applied successfully`
+                    });
+                }
+                
+                // Broadcast update to frontend if changes were made
+                if (result.permanentChangesApplied > 0 && this.mainWindow) {
+                    this.mainWindow.webContents.send('autonomous-changes-applied', {
+                        changesCount: result.permanentChangesApplied,
+                        description: result.description
+                    });
+                }
+                
+                return {
+                    success: true,
+                    ...result
+                };
+                
+            } catch (error) {
+                console.error('❌ AUTONOMOUS MODE FAILED:', error);
+                
+                // Clean up progress callback
+                delete this.gptCore.sendProgressUpdate;
+                
+                // Send failure notification
+                if (this.mainWindow) {
+                    this.mainWindow.webContents.send('rewriting-complete', {
+                        success: false,
+                        error: error.message
+                    });
+                }
+                
+                return {
+                    success: false,
+                    error: error.message,
+                    autonomousMode: true
+                };
+            }
+        });
+        
+        // Rollback autonomous changes
+        ipcMain.handle('autonomous-rollback', async (event, backupIndex = 0) => {
+            try {
+                console.log(`🔄 AUTONOMOUS ROLLBACK: Requesting rollback to backup ${backupIndex}...`);
+                
+                const result = await this.codeRewriter.autonomousRollback(backupIndex);
+                
+                // Broadcast rollback completion to frontend
+                if (result.success && this.mainWindow) {
+                    this.mainWindow.webContents.send('autonomous-rollback-completed', result);
+                }
+                
+                return result;
+                
+            } catch (error) {
+                console.error('❌ AUTONOMOUS ROLLBACK FAILED:', error);
+                return {
+                    success: false,
+                    error: error.message
+                };
+            }
+        });
+        
+        // Get available backups for rollback UI
+        ipcMain.handle('get-backup-list', async () => {
+            try {
+                const backups = await this.codeRewriter.getBackupList();
+                return {
+                    success: true,
+                    backups: backups
+                };
+            } catch (error) {
+                console.error('❌ GET BACKUP LIST FAILED:', error);
+                return {
+                    success: false,
+                    error: error.message,
+                    backups: []
+                };
             }
         });
     }

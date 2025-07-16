@@ -1,0 +1,25 @@
+:root {
+    --primary-color: #00d4ff;
+    --secondary-color: #0066cc;
+    --background-dark: #0a0a0a;
+    --background-secondary: #1a1a1a;
+    --text-primary: #ffffff;
+    --text-secondary: #cccccc;
+    --accent-color: #ffaa00;
+    --success-color: #00ff88;
+    --error-color: #ff4444;
+    --send-button-color: #ff0000; /* Changed from blue to red */
+}
+
+.send-button {
+    background-color: var(--send-button-color);
+    color: var(--text-primary);
+    border: none;
+    padding: 10px 20px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.send-button:hover {
+    background-color: darken(var(--send-button-color), 10%);
+}

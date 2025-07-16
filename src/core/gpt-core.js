@@ -23,9 +23,9 @@ class GptCore {
                 temperature: 0.2
             },
             complexReasoning: {
-                model: "o1-preview", 
+                model: "gpt-4o", 
                 maxTokens: 8000,
-                temperature: 1.0
+                temperature: 0.3
             },
             fallback: "gpt-4-turbo"
         };
@@ -39,6 +39,7 @@ class GptCore {
         this.conversationHistory = [];
         this.systemContext = '';
         this.isInitialized = false;
+        this.activeFeatureRequest = null;
     }
 
     async initialize() {
@@ -180,6 +181,22 @@ CPU Usage: ${systemHealth.cpu}%
             
             if (lowerInput.includes('gpt, log that instance')) {
                 return await this.handleNoteLogging(userInput);
+            }
+            
+            // Check if we're in an active feature request workflow
+            if (this.activeFeatureRequest) {
+                return await this.handleFeatureWorkflow(userInput);
+            }
+            
+            // Check for feature requests using AI detection
+            console.log('🔍 Checking for feature patterns in:', userInput);
+            const isFeatureRequest = await this.detectFeatureRequest(userInput);
+            
+            if (isFeatureRequest) {
+                console.log('🚀 Feature request detected by AI:', userInput);
+                console.log('🎯 Detection result:', isFeatureRequest);
+                
+                return await this.startConversationalWorkflow(userInput, isFeatureRequest);
             }
             
             // Add user input to conversation history
@@ -401,6 +418,110 @@ CPU Usage: ${systemHealth.cpu}%
                 case 'security_check':
                     return await this.securityManager.performSecurityCheck(parameters);
                 
+                case 'feature_request':
+                    // Enhanced feature implementation using the comprehensive global system
+                    console.log('🚀 Processing comprehensive feature request:', parameters);
+                    
+                    if (this.codeRewriter) {
+                        try {
+                            // Build detailed conversation context for the feature
+                            const conversation = [
+                                { 
+                                    role: 'user', 
+                                    content: parameters.originalRequest || parameters.description
+                                }
+                            ];
+                            
+                            // Add clarification context if available
+                            if (parameters.clarification) {
+                                conversation.push({
+                                    role: 'user',
+                                    content: `Additional details: ${parameters.clarification}`
+                                });
+                            }
+                            
+                            // Add system understanding of the request
+                            conversation.push({
+                                role: 'system',
+                                content: `COMPREHENSIVE FEATURE REQUEST:
+- Description: ${parameters.description}
+- Target: ${parameters.target}
+- Type: ${parameters.type}
+- Priority: ${parameters.priority}
+- User wants: ${parameters.originalRequest}
+- Clarification: ${parameters.clarification || 'None provided'}
+
+Generate complete, working implementation with real code changes.`
+                            });
+                            
+                            // Create project for tracking
+                            await this.projectManager.executeAction({
+                                action: 'create_project',
+                                data: {
+                                    name: `Feature: ${parameters.description.substring(0, 50)}`,
+                                    description: `${parameters.type} for ${parameters.target}: ${parameters.description}`,
+                                    type: 'software',
+                                    priority: parameters.priority === 'high' ? 1 : parameters.priority === 'low' ? 3 : 2
+                                }
+                            });
+                            
+                            // Generate comprehensive feature code using enhanced system
+                            const sourceContext = this.codeRewriter.getSourceContext();
+                            console.log('🔍 Source context contains', Object.keys(sourceContext).length, 'files');
+                            
+                            const rewriteResult = await this.codeRewriter.generateFeatureCode(conversation, sourceContext, this);
+                            console.log('🎯 Feature generation result:', rewriteResult);
+                            
+                            if (rewriteResult && rewriteResult.changes && rewriteResult.changes.length > 0) {
+                                console.log(`📝 Applying ${rewriteResult.changes.length} code changes...`);
+                                
+                                const applicationResult = await this.codeRewriter.applyCodeChanges(rewriteResult.changes, true);
+                                
+                                const successMessage = `🎉 Feature implemented successfully!
+✅ ${rewriteResult.description}
+📁 Files modified: ${applicationResult.successCount}
+${applicationResult.failureCount > 0 ? `⚠️ Failed changes: ${applicationResult.failureCount}` : ''}
+📊 Analysis: ${rewriteResult.analysisResult?.requestType || 'general'} (${rewriteResult.analysisResult?.complexity || 'medium'})
+📋 Project created to track progress.`;
+
+                                return {
+                                    success: true,
+                                    message: successMessage,
+                                    needsRestart: rewriteResult.needsRestart,
+                                    data: { 
+                                        target: parameters.target,
+                                        originalRequest: parameters.originalRequest,
+                                        description: rewriteResult.description,
+                                        filesModified: applicationResult.successCount,
+                                        failedChanges: applicationResult.failureCount,
+                                        analysisResult: rewriteResult.analysisResult
+                                    }
+                                };
+                            } else {
+                                console.warn('⚠️ No changes generated for feature request');
+                                return {
+                                    success: false,
+                                    error: 'Unable to generate feature implementation. The request may need more specific details or the target components may not be found.',
+                                    suggestClarification: true,
+                                    analysisResult: rewriteResult?.analysisResult
+                                };
+                            }
+                        } catch (rewriteError) {
+                            console.error('❌ Feature request processing failed:', rewriteError);
+                            return {
+                                success: false,
+                                error: `Feature implementation encountered an error: ${rewriteError.message}`,
+                                suggestRetry: true
+                            };
+                        }
+                    } else {
+                        return {
+                            success: false,
+                            error: 'Code rewriter is not available. Feature implementation requires the global code generation system.',
+                            suggestRestart: true
+                        };
+                    }
+                
                 default:
                     // Trigger adaptive code rewriting for unknown actions
                     console.log(`🔧 Unknown action "${actionType}" - triggering adaptive rewrite`);
@@ -417,7 +538,7 @@ CPU Usage: ${systemHealth.cpu}%
                             const rewriteResult = await this.codeRewriter.generateFeatureCode(conversation, sourceContext, this);
                             
                             if (rewriteResult && rewriteResult.changes) {
-                                await this.codeRewriter.applyCodeChanges(rewriteResult.changes);
+                                await this.codeRewriter.applyCodeChanges(rewriteResult.changes, true);
                                 
                                 return {
                                     success: true,
@@ -461,6 +582,505 @@ CPU Usage: ${systemHealth.cpu}%
 
     setCodeRewriter(codeRewriter) {
         this.codeRewriter = codeRewriter;
+    }
+
+    async detectFeatureRequest(userInput) {
+        /*
+        AUTONOMOUS AI WORKFLOW SPECIFICATION:
+        [User input] --> (Feature request detected) --> [First set of clarifying questions from agent] 
+        --> User response --> [Confirmation request from AI] --> [User confirm] --> [Agent action]
+        * User can quit at any time throughout the process
+        * All responses are AI-generated, no hardcoded content
+        */
+        
+        try {
+            // Prevent recursive detection - skip if this looks like an internal system prompt
+            if (userInput.includes('TASK:') || 
+                userInput.includes('SYSTEM:') || 
+                userInput.includes('CONVERSATION:') ||
+                userInput.includes('JSON') ||
+                userInput.length > 500) {
+                console.log('🚫 Skipping feature detection for internal system prompt');
+                return false;
+            }
+
+            // Use a lightweight model for quick feature detection
+            const detectionPrompt = `
+Analyze this user input to determine if it's a request for code/UI improvements, new features, or enhancements.
+
+User input: "${userInput}"
+
+Respond with JSON only:
+{
+    "isFeatureRequest": true/false,
+    "confidence": 0.0-1.0,
+    "target": "ui|notes|dashboard|general|specific_component",
+    "type": "enhancement|new_feature|redesign|improvement|bug_fix",
+    "priority": "high|medium|low",
+    "description": "Brief description of what the user wants"
+}
+
+Examples of feature requests:
+- "make the notes page better"
+- "add a search feature"
+- "redesign the dashboard"
+- "improve the UI"
+- "the notes section needs work"
+- "can you enhance the interface"
+- "change the color of the send button"
+
+Examples of NOT feature requests:
+- "what is the weather"
+- "show me my projects"
+- "how do I use this"
+- "tell me a joke"
+`;
+
+            const completion = await this.openai.chat.completions.create({
+                model: "gpt-3.5-turbo",
+                messages: [{ role: "user", content: detectionPrompt }],
+                temperature: 0.1,
+                max_tokens: 200
+            });
+
+            const response = JSON.parse(completion.choices[0].message.content);
+            
+            // Return false if not a feature request or confidence too low
+            if (!response.isFeatureRequest || response.confidence < 0.6) {
+                return false;
+            }
+
+            return response;
+
+        } catch (error) {
+            console.error('❌ Error in AI feature detection:', error);
+            // Fallback to simple keyword detection
+            const lowerInput = userInput.toLowerCase();
+            const featureKeywords = ['improve', 'enhance', 'add', 'create', 'build', 'make', 'redesign', 'rewrite', 'better', 'upgrade', 'change', 'feature'];
+            const hasFeatureKeyword = featureKeywords.some(keyword => lowerInput.includes(keyword));
+            
+            if (hasFeatureKeyword) {
+                let target = 'general';
+                if (lowerInput.includes('notes')) target = 'notes';
+                else if (lowerInput.includes('ui') || lowerInput.includes('interface')) target = 'ui';
+                else if (lowerInput.includes('dashboard')) target = 'dashboard';
+                else if (lowerInput.includes('button')) target = 'ui';
+                else if (lowerInput.includes('chat')) target = 'chat';
+                
+                return {
+                    isFeatureRequest: true,
+                    confidence: 0.7,
+                    target: target,
+                    type: 'improvement',
+                    priority: 'medium',
+                    description: `User requested: ${userInput}`
+                };
+            }
+            
+            return false;
+        }
+    }
+
+    async startConversationalWorkflow(userInput, detectionResult) {
+        try {
+            // Fully AI-driven clarifying questions generation
+            const clarificationPrompt = `
+SYSTEM: You are an autonomous AI assistant helping to clarify a feature request.
+
+USER REQUEST: "${userInput}"
+DETECTED: ${detectionResult.type} for ${detectionResult.target} (confidence: ${detectionResult.confidence})
+
+TASK: Generate natural clarifying questions to better understand the user's exact needs.
+
+Generate a response that:
+1. Briefly acknowledges their request 
+2. Asks 2-3 specific, targeted questions to understand their exact requirements
+3. Be conversational and helpful (not robotic)
+4. Mention they can say "quit" to cancel
+
+Focus on understanding:
+- Specific implementation details they want
+- Visual/functional preferences 
+- Scope and requirements
+- Any constraints or special needs
+
+RESPONSE FORMAT: Plain text only, no JSON. Be natural and engaging.`;
+
+            const completion = await this.openai.chat.completions.create({
+                model: "gpt-3.5-turbo",
+                messages: [{ role: "user", content: clarificationPrompt }],
+                temperature: 0.7,
+                max_tokens: 250
+            });
+
+            // Store the workflow context
+            this.activeFeatureRequest = {
+                originalInput: userInput,
+                detection: detectionResult,
+                stage: 'clarification'
+            };
+
+            return {
+                message: completion.choices[0].message.content,
+                action: null,
+                parameters: null,
+                shouldSpeak: true,
+                needsClarification: true,
+                clarifyingQuestions: ["Please provide more details"],
+                confidence: detectionResult.confidence
+            };
+
+        } catch (error) {
+            console.error('❌ Error in AI-driven clarification workflow:', error);
+            
+            // Fully AI-driven fallback - use simple autonomous prompt
+            try {
+                const fallbackPrompt = `User wants: "${userInput}"
+This is a ${detectionResult.type} for ${detectionResult.target}.
+
+Generate a natural response asking for clarification details. Be conversational and mention they can say "quit".`;
+
+                const fallbackCompletion = await this.openai.chat.completions.create({
+                    model: "gpt-3.5-turbo",
+                    messages: [{ role: "user", content: fallbackPrompt }],
+                    temperature: 0.7,
+                    max_tokens: 150
+                });
+
+                this.activeFeatureRequest = {
+                    originalInput: userInput,
+                    detection: detectionResult,
+                    stage: 'clarification'
+                };
+
+                return {
+                    message: fallbackCompletion.choices[0].message.content,
+                    action: null,
+                    parameters: null,
+                    shouldSpeak: true,
+                    needsClarification: true,
+                    clarifyingQuestions: ["Please provide more details"],
+                    confidence: detectionResult.confidence
+                };
+            } catch (fallbackError) {
+                console.error('❌ AI fallback also failed:', fallbackError);
+                
+                // Last resort autonomous response
+                this.activeFeatureRequest = {
+                    originalInput: userInput,
+                    detection: detectionResult,
+                    stage: 'clarification'
+                };
+
+                return {
+                    message: "I'd love to help with that! Can you give me a bit more detail about what you're looking for?",
+                    action: null,
+                    parameters: null,
+                    shouldSpeak: true,
+                    needsClarification: true,
+                    clarifyingQuestions: ["Can you provide more details?"],
+                    confidence: detectionResult.confidence
+                };
+            }
+        }
+    }
+
+    async handleFeatureWorkflow(userInput) {
+        const lowerInput = userInput.toLowerCase();
+        
+        // Allow user to quit at any time
+        if (lowerInput.includes('quit') || lowerInput.includes('cancel') || lowerInput.includes('stop')) {
+            this.activeFeatureRequest = null;
+            
+            // AI-generated quit response
+            try {
+                const quitPrompt = `User wants to quit/cancel their feature request. Generate a brief, friendly response acknowledging this and offering to help with something else.`;
+                
+                const completion = await this.openai.chat.completions.create({
+                    model: "gpt-3.5-turbo",
+                    messages: [{ role: "user", content: quitPrompt }],
+                    temperature: 0.7,
+                    max_tokens: 100
+                });
+                
+                return {
+                    message: completion.choices[0].message.content,
+                    action: null,
+                    parameters: null,
+                    shouldSpeak: true,
+                    needsClarification: false,
+                    clarifyingQuestions: null,
+                    confidence: 1.0
+                };
+            } catch (error) {
+                console.error('❌ Error generating quit response:', error);
+                return {
+                    message: "No problem! What else can I help you with?",
+                    action: null,
+                    parameters: null,
+                    shouldSpeak: true,
+                    needsClarification: false,
+                    clarifyingQuestions: null,
+                    confidence: 1.0
+                };
+            }
+        }
+
+        if (this.activeFeatureRequest.stage === 'clarification') {
+            // Move to confirmation stage
+            return await this.generateConfirmation(userInput);
+        } else if (this.activeFeatureRequest.stage === 'confirmation') {
+            // Handle user's confirmation or denial
+            return await this.handleConfirmation(userInput);
+        }
+
+        return null;
+    }
+
+    async generateConfirmation(userInput) {
+        try {
+            // Fully AI-driven confirmation generation
+            const confirmationPrompt = `
+SYSTEM: You are an autonomous AI assistant confirming a feature implementation request.
+
+ORIGINAL REQUEST: "${this.activeFeatureRequest.originalInput}"
+DETECTION: ${this.activeFeatureRequest.detection.type} for ${this.activeFeatureRequest.detection.target}
+USER CLARIFICATION: "${userInput}"
+
+TASK: Generate a natural confirmation message that:
+1. Summarizes exactly what you understand the user wants implemented
+2. Shows you understand both the original request AND the clarification
+3. Asks for clear confirmation to proceed with implementation
+4. Reminds them they can say "quit" to cancel anytime
+
+Be conversational, specific, and show clear understanding of their request.
+
+RESPONSE FORMAT: Plain text only, no JSON. Be natural and conversational.`;
+
+            const completion = await this.openai.chat.completions.create({
+                model: "gpt-3.5-turbo",
+                messages: [{ role: "user", content: confirmationPrompt }],
+                temperature: 0.5,
+                max_tokens: 200
+            });
+
+            // Update stage and store clarification
+            this.activeFeatureRequest.stage = 'confirmation';
+            this.activeFeatureRequest.clarification = userInput;
+
+            return {
+                message: completion.choices[0].message.content,
+                action: null,
+                parameters: null,
+                shouldSpeak: true,
+                needsClarification: true,
+                clarifyingQuestions: ["Should I proceed with this implementation?"],
+                confidence: 0.9
+            };
+
+        } catch (error) {
+            console.error('❌ Error generating AI confirmation:', error);
+            
+            // Fully AI-driven fallback confirmation
+            try {
+                const fallbackConfirmationPrompt = `User originally wanted: "${this.activeFeatureRequest.originalInput}"
+They clarified: "${userInput}"
+
+Generate a confirmation message asking if they want to proceed. Be natural and conversational.`;
+
+                const fallbackCompletion = await this.openai.chat.completions.create({
+                    model: "gpt-3.5-turbo", 
+                    messages: [{ role: "user", content: fallbackConfirmationPrompt }],
+                    temperature: 0.5,
+                    max_tokens: 150
+                });
+
+                this.activeFeatureRequest.stage = 'confirmation';
+                this.activeFeatureRequest.clarification = userInput;
+                
+                return {
+                    message: fallbackCompletion.choices[0].message.content,
+                    action: null,
+                    parameters: null,
+                    shouldSpeak: true,
+                    needsClarification: true,
+                    clarifyingQuestions: ["Should I proceed with this implementation?"],
+                    confidence: 0.8
+                };
+            } catch (fallbackError) {
+                console.error('❌ AI confirmation fallback failed:', fallbackError);
+                
+                // Last resort - very simple autonomous response
+                this.activeFeatureRequest.stage = 'confirmation';
+                this.activeFeatureRequest.clarification = userInput;
+                
+                return {
+                    message: "Got it! Should I go ahead and implement this for you?",
+                    action: null,
+                    parameters: null,
+                    shouldSpeak: true,
+                    needsClarification: true,
+                    clarifyingQuestions: ["Should I proceed?"],
+                    confidence: 0.7
+                };
+            }
+        }
+    }
+
+    async handleConfirmation(userInput) {
+        const lowerInput = userInput.toLowerCase();
+        
+        if (lowerInput.includes('yes') || lowerInput.includes('confirm') || lowerInput.includes('proceed') || lowerInput.includes('go ahead')) {
+            // Execute the feature request
+            const result = await this.executeFeatureFromWorkflow();
+            this.activeFeatureRequest = null;
+            return result;
+        } else if (lowerInput.includes('no') || lowerInput.includes('cancel')) {
+            this.activeFeatureRequest = null;
+            
+            // AI-generated cancellation response
+            try {
+                const cancellationPrompt = `User decided not to proceed with their feature request. Generate a brief, friendly response acknowledging the cancellation and offering to help with something else.`;
+                
+                const completion = await this.openai.chat.completions.create({
+                    model: "gpt-3.5-turbo",
+                    messages: [{ role: "user", content: cancellationPrompt }],
+                    temperature: 0.7,
+                    max_tokens: 100
+                });
+                
+                return {
+                    message: completion.choices[0].message.content,
+                    action: null,
+                    parameters: null,
+                    shouldSpeak: true,
+                    needsClarification: false,
+                    clarifyingQuestions: null,
+                    confidence: 1.0
+                };
+            } catch (error) {
+                console.error('❌ Error generating cancellation response:', error);
+                return {
+                    message: "No problem! Feel free to ask me anything else.",
+                    action: null,
+                    parameters: null,
+                    shouldSpeak: true,
+                    needsClarification: false,
+                    clarifyingQuestions: null,
+                    confidence: 1.0
+                };
+            }
+        } else {
+            // AI-generated clarification request
+            try {
+                const clarificationPrompt = `User's response to confirmation: "${userInput}"
+I need them to clearly say yes or no to proceed. Generate a brief response asking for a clear answer.`;
+                
+                const completion = await this.openai.chat.completions.create({
+                    model: "gpt-3.5-turbo",
+                    messages: [{ role: "user", content: clarificationPrompt }],
+                    temperature: 0.5,
+                    max_tokens: 100
+                });
+                
+                return {
+                    message: completion.choices[0].message.content,
+                    action: null,
+                    parameters: null,
+                    shouldSpeak: true,
+                    needsClarification: true,
+                    clarifyingQuestions: ["Please say 'yes' or 'no'"],
+                    confidence: 0.7
+                };
+            } catch (error) {
+                console.error('❌ Error generating clarification request:', error);
+                return {
+                    message: "Could you please say 'yes' to proceed or 'quit' to cancel?",
+                    action: null,
+                    parameters: null,
+                    shouldSpeak: true,
+                    needsClarification: true,
+                    clarifyingQuestions: ["Please say 'yes' or 'quit'"],
+                    confidence: 0.7
+                };
+            }
+        }
+    }
+
+    async executeFeatureFromWorkflow() {
+        try {
+            const request = this.activeFeatureRequest;
+            
+            // Execute the feature request
+            const actionResult = await this.executeAction('feature_request', {
+                originalRequest: request.originalInput,
+                description: request.detection.description,
+                target: request.detection.target,
+                priority: request.detection.priority,
+                type: request.detection.type,
+                clarification: request.clarification
+            });
+
+            if (actionResult.success) {
+                return {
+                    message: `🎉 Feature implemented successfully!\n\n${actionResult.message}`,
+                    action: null,
+                    parameters: null,
+                    shouldSpeak: true,
+                    needsClarification: false,
+                    clarifyingQuestions: null,
+                    confidence: 1.0
+                };
+            } else {
+                return {
+                    message: `❌ Implementation failed: ${actionResult.error}\n\nWould you like me to try a different approach?`,
+                    action: null,
+                    parameters: null,
+                    shouldSpeak: true,
+                    needsClarification: true,
+                    clarifyingQuestions: ["Should I try again?"],
+                    confidence: 0.5
+                };
+            }
+
+        } catch (error) {
+            console.error('❌ Error executing feature:', error);
+            return {
+                message: `❌ Sorry, I encountered an error: ${error.message}`,
+                action: null,
+                parameters: null,
+                shouldSpeak: true,
+                needsClarification: false,
+                clarifyingQuestions: null,
+                confidence: 0.0
+            };
+        }
+    }
+
+    // Debug message functionality for chat integration
+    sendDebugToChat(message) {
+        console.log('📤 DEBUG to chat:', message);
+        
+        // If there's an active UI connection, send the debug message
+        if (this.mainWindow && this.mainWindow.webContents) {
+            this.mainWindow.webContents.executeJavaScript(`
+                if (window.app && window.app.addChatMessage) {
+                    window.app.addChatMessage({
+                        role: 'system',
+                        content: '${message.replace(/'/g, "\\'")}',
+                        timestamp: new Date().toLocaleTimeString(),
+                        isDebug: true
+                    });
+                }
+            `).catch(error => {
+                console.warn('⚠️ Failed to send debug message to chat:', error.message);
+            });
+        }
+    }
+
+    setMainWindow(mainWindow) {
+        this.mainWindow = mainWindow;
+        console.log('📱 Main window reference set for debug messaging');
     }
 }
 

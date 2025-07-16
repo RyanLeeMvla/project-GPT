@@ -52,3 +52,6 @@ Model Strategy:
 🔧 Code Generation: GPT-4o (powerful, accurate coding)
 🧠 Complex Reasoning: o1-preview (advanced logic)
 🔄 Fallback: GPT-4-turbo (reliable backup)
+
+
+Ok, let me break down my desired workflow. The user inputs in text or voice. An AI Driven, NOT hardcoded, response is parsed from the input, and generated. In that same process, the input is scanned for the User's intent to create a new feature. If detected, the AI begins the feature creation workflow. From here on forward, it follows like this: [User input] --> (Feature request detected) --> [First set of clarifying questions from agent] --> User response --> [Confirmation request from AI] --> [User confrim] --> [agent action]. Ability for user to quit at any time

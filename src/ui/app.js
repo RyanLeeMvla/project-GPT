@@ -306,6 +306,49 @@ class GptUI {
             this.sendChatMessage();
         });
 
+        // ========================
+        // AUTONOMOUS MODE CONTROLS
+        // ========================
+        
+        // Autonomous mode toggle
+        document.getElementById('autonomousMode').addEventListener('change', (e) => {
+            this.handleAutonomousModeToggle(e.target.checked);
+        });
+
+        // Backup management button
+        document.getElementById('backupBtn').addEventListener('click', () => {
+            this.showBackupModal();
+        });
+
+        // Emergency rollback button
+        document.getElementById('rollbackBtn').addEventListener('click', () => {
+            this.performEmergencyRollback();
+        });
+
+        // Backup modal controls
+        document.getElementById('closeBackupModal').addEventListener('click', () => {
+            this.hideBackupModal();
+        });
+
+        document.getElementById('closeBackupModalBtn').addEventListener('click', () => {
+            this.hideBackupModal();
+        });
+
+        // Listen for autonomous changes applied
+        ipcRenderer.on('autonomous-changes-applied', (event, data) => {
+            this.handleAutonomousChangesApplied(data);
+        });
+
+        // Listen for autonomous rollback completed
+        ipcRenderer.on('autonomous-rollback-completed', (event, data) => {
+            this.handleAutonomousRollbackCompleted(data);
+        });
+
+        // Listen for rewriting progress updates
+        ipcRenderer.on('rewriting-progress', (event, data) => {
+            this.updateRewritingProgress(data.step, data.progress, data.message);
+        });
+
         document.getElementById('newProjectBtn').addEventListener('click', () => {
             this.createNewProject();
         });
@@ -390,6 +433,21 @@ class GptUI {
             console.log('📡 Received projects-updated broadcast, refreshing...');
             if (this.currentPage === 'projects') {
                 this.loadProjects();
+            }
+        });
+        
+        // Listen for rewriting progress updates
+        ipcRenderer.on('rewriting-progress', (event, data) => {
+            this.updateRewritingProgress(data.step, data.totalSteps, data.message);
+        });
+        
+        // Listen for rewriting completion
+        ipcRenderer.on('rewriting-complete', (event, data) => {
+            this.hideRewritingModal();
+            if (data.success) {
+                this.showNotification(`✅ ${data.message}`, 'success');
+            } else {
+                this.showNotification(`❌ ${data.error}`, 'error');
             }
         });
     }
@@ -621,19 +679,56 @@ class GptUI {
             timestamp: new Date().toISOString()
         });
         
+        // Check if autonomous mode is enabled
+        const autonomousMode = document.getElementById('autonomousMode').checked;
+        
         // Send to GPT
         try {
-            const response = await ipcRenderer.invoke('send-command', message);
-            this.handleGptResponse({
-                command: message,
-                response: response,
-                timestamp: new Date().toISOString()
-            });
+            let response;
+            
+            if (autonomousMode) {
+                // Use autonomous permanent changes
+                console.log('🤖 AUTONOMOUS MODE: Sending request for permanent changes...');
+                
+                // Show rewriting modal with progress
+                this.showRewritingModal();
+                
+                // Create conversation context
+                const conversation = this.getChatHistory();
+                conversation.push({ role: 'user', content: message });
+                
+                response = await ipcRenderer.invoke('enable-autonomous-changes', conversation);
+                
+                // Hide rewriting modal
+                this.hideRewritingModal();
+                
+                if (response.success) {
+                    this.addChatMessage({
+                        sender: 'gpt',
+                        message: `🤖 AUTONOMOUS MODE: ${response.description || 'Changes applied successfully'}\n\n✅ Permanent changes: ${response.permanentChangesApplied || 0}\n❌ Failed changes: ${response.failedChanges || 0}\n🛡️ Backup created: ${response.backupCreated ? 'Yes' : 'No'}`,
+                        timestamp: new Date().toISOString()
+                    });
+                } else {
+                    this.addChatMessage({
+                        sender: 'gpt',
+                        message: `❌ AUTONOMOUS MODE FAILED: ${response.error || 'Unknown error occurred'}`,
+                        timestamp: new Date().toISOString()
+                    });
+                }
+            } else {
+                // Use regular chat mode
+                response = await ipcRenderer.invoke('send-command', message);
+                this.handleGptResponse({
+                    command: message,
+                    response: response,
+                    timestamp: new Date().toISOString()
+                });
+            }
         } catch (error) {
             console.error('Error sending message to GPT:', error);
             this.addChatMessage({
                 sender: 'gpt',
-                message: 'Sorry, I encountered an error processing your request.',
+                message: `Sorry, I encountered an error processing your request: ${error.message}`,
                 timestamp: new Date().toISOString()
             });
         }
@@ -687,8 +782,21 @@ class GptUI {
 
     createMessageHTML(messageData) {
         const time = new Date(messageData.timestamp).toLocaleTimeString();
-        const senderClass = messageData.sender === 'user' ? 'user' : 'gpt';
-        const senderName = messageData.sender === 'user' ? 'You' : 'GPT';
+        let senderClass, senderName;
+        
+        switch (messageData.sender) {
+            case 'user':
+                senderClass = 'user';
+                senderName = 'You';
+                break;
+            case 'system':
+                senderClass = 'system';
+                senderName = 'System';
+                break;
+            default:
+                senderClass = 'gpt';
+                senderName = 'GPT';
+        }
         
         return `
             <div class="message ${senderClass}">
@@ -1115,9 +1223,223 @@ class GptUI {
         // Timeline navigation logic - could implement month/week navigation
         console.log('Navigate timeline:', direction);
     }
+
+    // ========================
+    // AUTONOMOUS MODE METHODS
+    // ========================
+    
+    handleAutonomousModeToggle(enabled) {
+        const statusElement = document.getElementById('autonomousStatus');
+        
+        if (enabled) {
+            statusElement.textContent = 'ENABLED - Changes will be permanent with backup safety';
+            statusElement.className = 'autonomous-status enabled';
+            
+            this.addChatMessage({
+                sender: 'system',
+                message: '🤖 AUTONOMOUS MODE ENABLED: All feature requests will now make permanent changes to your codebase with automatic backup protection.',
+                timestamp: new Date().toISOString()
+            });
+        } else {
+            statusElement.textContent = 'Disabled - Changes will be temporary';
+            statusElement.className = 'autonomous-status disabled';
+            
+            this.addChatMessage({
+                sender: 'system',
+                message: '🔄 AUTONOMOUS MODE DISABLED: Returning to temporary conversation-only mode.',
+                timestamp: new Date().toISOString()
+            });
+        }
+    }
+    
+    async showBackupModal() {
+        const modal = document.getElementById('backupModal');
+        const backupsList = document.getElementById('backupsList');
+        
+        modal.style.display = 'flex';
+        
+        try {
+            // Load available backups
+            const result = await ipcRenderer.invoke('get-backup-list');
+            
+            if (result.success && result.backups.length > 0) {
+                backupsList.innerHTML = result.backups.map((backup, index) => `
+                    <div class="backup-item">
+                        <div class="backup-info-text">
+                            <div><strong>Backup ${index}</strong> - ${new Date(backup.timestamp).toLocaleString()}</div>
+                            <div style="font-size: 11px;">${backup.date}</div>
+                        </div>
+                        <div class="backup-actions">
+                            <button class="btn btn-secondary" onclick="gptUI.restoreBackup(${backup.timestamp})" style="padding: 4px 8px; font-size: 11px;">
+                                🔄 Restore
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                backupsList.innerHTML = `
+                    <div style="text-align: center; padding: 30px; color: var(--text-secondary);">
+                        <div style="font-size: 48px; margin-bottom: 15px;">🛡️</div>
+                        <div>No backups available yet</div>
+                        <div style="font-size: 12px; margin-top: 8px;">Backups will be created automatically when autonomous mode makes permanent changes</div>
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error('Failed to load backups:', error);
+            backupsList.innerHTML = `
+                <div style="text-align: center; padding: 30px; color: var(--error-color);">
+                    <div>❌ Failed to load backups</div>
+                    <div style="font-size: 12px; margin-top: 8px;">${error.message}</div>
+                </div>
+            `;
+        }
+    }
+    
+    hideBackupModal() {
+        document.getElementById('backupModal').style.display = 'none';
+    }
+    
+    async performEmergencyRollback() {
+        if (!confirm('⚠️ EMERGENCY ROLLBACK: This will restore your codebase to the most recent backup. Continue?')) {
+            return;
+        }
+        
+        try {
+            const result = await ipcRenderer.invoke('autonomous-rollback', 0);
+            
+            if (result.success) {
+                this.addChatMessage({
+                    sender: 'system',
+                    message: `✅ EMERGENCY ROLLBACK COMPLETED: ${result.message}`,
+                    timestamp: new Date().toISOString()
+                });
+            } else {
+                this.addChatMessage({
+                    sender: 'system',
+                    message: `❌ EMERGENCY ROLLBACK FAILED: ${result.error}`,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        } catch (error) {
+            this.addChatMessage({
+                sender: 'system',
+                message: `❌ EMERGENCY ROLLBACK ERROR: ${error.message}`,
+                timestamp: new Date().toISOString()
+            });
+        }
+    }
+    
+    async restoreBackup(timestamp) {
+        if (!confirm(`🔄 RESTORE BACKUP: This will restore your codebase to the backup from ${new Date(timestamp).toLocaleString()}. Continue?`)) {
+            return;
+        }
+        
+        try {
+            const result = await ipcRenderer.invoke('autonomous-rollback', timestamp);
+            
+            if (result.success) {
+                this.addChatMessage({
+                    sender: 'system',
+                    message: `✅ BACKUP RESTORED: ${result.message}`,
+                    timestamp: new Date().toISOString()
+                });
+                this.hideBackupModal();
+            } else {
+                this.addChatMessage({
+                    sender: 'system',
+                    message: `❌ BACKUP RESTORE FAILED: ${result.error}`,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        } catch (error) {
+            this.addChatMessage({
+                sender: 'system',
+                message: `❌ BACKUP RESTORE ERROR: ${error.message}`,
+                timestamp: new Date().toISOString()
+            });
+        }
+    }
+    
+    handleAutonomousChangesApplied(data) {
+        this.addChatMessage({
+            sender: 'system',
+            message: `🎉 AUTONOMOUS CHANGES APPLIED: ${data.changesCount} permanent modifications completed successfully!\n\n${data.description}`,
+            timestamp: new Date().toISOString()
+        });
+    }
+    
+    handleAutonomousRollbackCompleted(data) {
+        this.addChatMessage({
+            sender: 'system',
+            message: `🔄 ROLLBACK COMPLETED: ${data.message}`,
+            timestamp: new Date().toISOString()
+        });
+    }
+    
+    getChatHistory() {
+        const messages = document.querySelectorAll('.message');
+        const history = [];
+        
+        messages.forEach(msg => {
+            const role = msg.classList.contains('gpt') ? 'assistant' : 'user';
+            const content = msg.querySelector('div:last-child').textContent;
+            if (content && !content.startsWith('🤖') && !content.startsWith('✅') && !content.startsWith('❌')) {
+                history.push({ role, content });
+            }
+        });
+        
+        return history.slice(-10); // Keep last 10 messages for context
+    }
+
+    // ========================
+    // REWRITING MODAL METHODS
+    // ========================
+    
+    showRewritingModal(initialMessage = 'Preparing autonomous changes...') {
+        const modal = document.getElementById('rewritingModal');
+        const progressBar = document.querySelector('#rewritingProgress .progress-fill');
+        const statusText = document.getElementById('rewritingStatus');
+        
+        if (modal) {
+            modal.style.display = 'flex';
+            if (progressBar) {
+                progressBar.style.width = '0%';
+            }
+            if (statusText) {
+                statusText.textContent = initialMessage;
+            }
+        }
+    }
+    
+    updateRewritingProgress(step, progress, message) {
+        const progressBar = document.querySelector('#rewritingProgress .progress-fill');
+        const statusText = document.getElementById('rewritingStatus');
+        
+        if (progressBar && statusText) {
+            // If progress is already a percentage (like 10, 30, 50), use it directly
+            // If it looks like totalSteps (small number), calculate percentage
+            const percentage = progress > 10 ? progress : Math.round((step / progress) * 100);
+            progressBar.style.width = `${percentage}%`;
+            statusText.textContent = message || `Step ${step} - ${percentage}%`;
+            
+            console.log(`🔄 Rewriting Progress: ${percentage}% - ${message}`);
+        }
+    }
+    
+    hideRewritingModal() {
+        const modal = document.getElementById('rewritingModal');
+        if (modal) {
+            // Add fade out animation
+            modal.style.opacity = '0';
+            setTimeout(() => {
+                modal.style.display = 'none';
+                modal.style.opacity = '1'; // Reset for next time
+            }, 300);
+        }
+    }
 }
 
-// Initialize UI when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     console.log('🚀 DOM LOADED - Starting UI initialization');
     const ui = new GptUI();
