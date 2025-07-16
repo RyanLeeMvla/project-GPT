@@ -477,7 +477,7 @@ class GptApp {
                 const sourceContext = this.codeRewriter.getSourceContext();
                 
                 // Apply autonomous permanent changes with backup safety
-                const result = await this.codeRewriter.enableAutonomousPermanentChanges(
+                const result = await this.codeRewriter.generateAndApplyChanges(
                     conversation, 
                     sourceContext, 
                     this.gptCore
@@ -490,14 +490,14 @@ class GptApp {
                 if (this.mainWindow) {
                     this.mainWindow.webContents.send('rewriting-complete', {
                         success: true,
-                        message: `${result.permanentChangesApplied || 0} changes applied successfully`
+                        message: `${result.successCount || 0} changes applied successfully`
                     });
                 }
                 
                 // Broadcast update to frontend if changes were made
-                if (result.permanentChangesApplied > 0 && this.mainWindow) {
+                if (result.successCount > 0 && this.mainWindow) {
                     this.mainWindow.webContents.send('autonomous-changes-applied', {
-                        changesCount: result.permanentChangesApplied,
+                        changesCount: result.successCount,
                         description: result.description
                     });
                 }
