@@ -436,11 +436,6 @@ class GptUI {
             }
         });
         
-        // Listen for rewriting progress updates
-        ipcRenderer.on('rewriting-progress', (event, data) => {
-            this.updateRewritingProgress(data.step, data.totalSteps, data.message);
-        });
-        
         // Listen for rewriting completion
         ipcRenderer.on('rewriting-complete', (event, data) => {
             this.hideRewritingModal();
@@ -1417,9 +1412,8 @@ class GptUI {
         const statusText = document.getElementById('rewritingStatus');
         
         if (progressBar && statusText) {
-            // If progress is already a percentage (like 10, 30, 50), use it directly
-            // If it looks like totalSteps (small number), calculate percentage
-            const percentage = progress > 10 ? progress : Math.round((step / progress) * 100);
+            // Progress is always sent as a percentage value (10, 30, 50, 70, 90, 100)
+            const percentage = Math.round(progress);
             progressBar.style.width = `${percentage}%`;
             statusText.textContent = message || `Step ${step} - ${percentage}%`;
             
