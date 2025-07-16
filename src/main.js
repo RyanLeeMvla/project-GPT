@@ -161,6 +161,16 @@ class GptApp {
         });
     }
 
+    async initializeVoiceManager() {
+        try {
+            this.voiceManager = new VoiceManager(this.mainWindow);
+            await this.voiceManager.initialize();
+            console.log('🎤 Voice Manager initialized successfully');
+        } catch (error) {
+            console.error('❌ Failed to initialize Voice Manager:', error);
+        }
+    }
+
     setupIPCHandlers() {
         // Log handler for frontend debugging
         ipcMain.on('log-message', (event, message) => {

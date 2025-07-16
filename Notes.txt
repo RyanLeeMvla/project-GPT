@@ -20,6 +20,17 @@ Next steps:
 Problems:
 - Inventory item not found - When asking to remove Print Bed Adhesive Item
 - Double GPT Response to Feature Request - Responds twice, with different intents
+
+Known-Good Solutions:
+- If the app isn't responsing, check for duplicate class declarations in app.js:
+  * Look for "Identifier 'ClassName' has already been declared" errors
+  * Use grep to find duplicate classes: grep "class ClassName" src/ui/app.js  
+  * Remove the duplicate class definition (usually the second one)
+  * Common duplicates: PerformanceTimer, LoadingManager
+  * ✅ FIXED: Duplicate PerformanceTimer class causing UI unresponsiveness
+  * ✅ FIXED: Duplicate LoadingManager class causing UI unresponsiveness
+
+
 - ✅ FIXED: sendCommand method error - Changed to use processCommand in main.js
 - ✅ FIXED: Code generation returning undefined - Modified processCommand to handle codeGeneration model type correctly
 - ✅ FIXED: Database parameter mapping error - Fixed note_taking action to pass correct data structure to addNote method

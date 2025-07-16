@@ -6,50 +6,142 @@ class CodeRewriter {
     constructor() {
         this.projectRoot = path.join(__dirname, '../..');
         this.sourceFiles = new Map(); // Cache of source file contents
-        this.backups = new Map(); // Backup of original files
+        this.backups = new Map(); // Memory backup of original files
+        this.persistentBackups = new Map(); // Persistent backup references
         this.restartPending = false;
+        this.backupDir = path.join(this.projectRoot, '.code-rewriter-backups');
+        this.operationLog = [];
+        this.autoRollback = true;
+        
+        // Comprehensive file patterns to scan
+        this.filePatterns = [
+            '.js', '.ts', '.json', '.html', '.css', '.scss', 
+            '.jsx', '.tsx', '.vue', '.md', '.txt', '.sql',
+            '.config.js', '.config.ts', '.config.json'
+        ];
+        
+        // Critical directories to always include
+        this.criticalDirs = [
+            'src', 'public', 'assets', 'config', 'database', 
+            'scripts', 'components', 'pages', 'styles', 
+            'utils', 'lib', 'api', 'docs', 'tests'
+        ];
+        
+        // Files to exclude from scanning
+        this.excludePatterns = [
+            'node_modules', '.git', '.vscode', 'dist', 'build', 
+            '.next', '.nuxt', 'coverage', '.nyc_output',
+            '.code-rewriter-backups', 'logs'
+        ];
+        
+        // Auto-cleanup settings
+        this.maxBackups = 5; // Keep only the 5 most recent backups
+        this.autoCleanup = true; // Enable automatic cleanup
     }
 
     async initialize() {
-        console.log('🔧 Initializing Code Rewriter...');
+        console.log('🔧 Initializing Enhanced Code Rewriter...');
+        await this.initializeBackupSystem();
         await this.scanSourceFiles();
-        console.log('✅ Code Rewriter initialized');
+        
+        // Auto-cleanup old backups on startup
+        if (this.autoCleanup) {
+            await this.cleanupOldBackups(this.maxBackups);
+        }
+        
+        console.log('✅ Enhanced Code Rewriter initialized');
+        console.log(`📁 Scanning ${this.sourceFiles.size} source files`);
+        console.log(`💾 Backup system ready (keeping ${this.maxBackups} backups)`);
     }
 
-    async scanSourceFiles() {
-        const sourceDirectories = [
-            'src/ui',
-            'src/core', 
-            'src/projects',
-            'src/security',
-            'src/computer',
-            'src/fabrication',
-            'src/voice'
-        ];
-
-        for (const dir of sourceDirectories) {
-            await this.scanDirectory(path.join(this.projectRoot, dir));
+    async initializeBackupSystem() {
+        try {
+            // Ensure backup directory exists
+            await fs.mkdir(this.backupDir, { recursive: true });
+            
+            // Create operation log file if it doesn't exist
+            const logFile = path.join(this.backupDir, 'operations.log');
+            try {
+                await fs.access(logFile);
+            } catch {
+                await fs.writeFile(logFile, JSON.stringify([], null, 2));
+            }
+            
+            // Load previous operation log
+            const logContent = await fs.readFile(logFile, 'utf8');
+            this.operationLog = JSON.parse(logContent);
+            
+            console.log('💾 Persistent backup system initialized');
+        } catch (error) {
+            console.error('⚠️ Error initializing backup system:', error);
+            this.autoRollback = false; // Disable auto-rollback if backup system fails
         }
     }
 
-    async scanDirectory(dirPath) {
+    async scanSourceFiles() {
+        console.log('🔍 Comprehensive source file scanning...');
+        
+        // Start with critical directories
+        for (const dir of this.criticalDirs) {
+            const dirPath = path.join(this.projectRoot, dir);
+            try {
+                await fs.access(dirPath);
+                await this.scanDirectory(dirPath);
+            } catch (error) {
+                // Directory doesn't exist, skip it
+                console.log(`📁 Skipping non-existent directory: ${dir}`);
+            }
+        }
+        
+        // Also scan root level files
+        await this.scanDirectory(this.projectRoot, false);
+        
+        console.log(`📊 Scanned ${this.sourceFiles.size} files across project`);
+    }
+
+    async scanDirectory(dirPath, recursive = true) {
         try {
             const entries = await fs.readdir(dirPath, { withFileTypes: true });
             
             for (const entry of entries) {
                 const fullPath = path.join(dirPath, entry.name);
+                const relativePath = path.relative(this.projectRoot, fullPath);
                 
-                if (entry.isDirectory()) {
+                // Skip excluded patterns
+                if (this.shouldExclude(relativePath, entry.name)) {
+                    continue;
+                }
+                
+                if (entry.isDirectory() && recursive) {
+                    // Recursively scan subdirectories
                     await this.scanDirectory(fullPath);
-                } else if (entry.name.endsWith('.js')) {
-                    const content = await fs.readFile(fullPath, 'utf8');
-                    const relativePath = path.relative(this.projectRoot, fullPath);
-                    this.sourceFiles.set(relativePath, content);
+                } else if (entry.isFile() && this.shouldIncludeFile(entry.name)) {
+                    try {
+                        const content = await fs.readFile(fullPath, 'utf8');
+                        this.sourceFiles.set(relativePath, content);
+                        // Removed verbose per-file logging - only show summary
+                    } catch (error) {
+                        console.warn(`⚠️ Could not read file ${relativePath}:`, error.message);
+                    }
                 }
             }
         } catch (error) {
-            console.warn(`Could not scan directory ${dirPath}:`, error.message);
+            console.warn(`⚠️ Error scanning directory ${dirPath}:`, error.message);
         }
+    }
+
+    shouldExclude(relativePath, fileName) {
+        // Check if path contains any exclude patterns
+        return this.excludePatterns.some(pattern => 
+            relativePath.includes(pattern) || fileName.startsWith('.')
+        );
+    }
+
+    shouldIncludeFile(fileName) {
+        // Check if file matches any of our patterns
+        return this.filePatterns.some(pattern => 
+            fileName.endsWith(pattern) || fileName.includes(pattern)
+        );
     }
 
     getSourceContext() {
@@ -91,13 +183,126 @@ class CodeRewriter {
 
     async createBackup() {
         const timestamp = Date.now();
-        console.log(`💾 Creating code backup: ${timestamp}`);
+        // Silent backup creation - only show completion message
         
-        for (const [filePath, content] of this.sourceFiles) {
-            this.backups.set(`${filePath}_${timestamp}`, content);
+        try {
+            // Create backup metadata
+            const backupInfo = {
+                timestamp,
+                date: new Date().toISOString(),
+                files: {},
+                operation: 'pre-modification-backup'
+            };
+            
+            // Create timestamp-specific backup directory
+            const backupTimestampDir = path.join(this.backupDir, timestamp.toString());
+            await fs.mkdir(backupTimestampDir, { recursive: true });
+            
+            // Backup all source files to persistent storage
+            for (const [filePath, content] of this.sourceFiles) {
+                // Memory backup
+                this.backups.set(`${filePath}_${timestamp}`, content);
+                
+                // Persistent backup
+                const backupFilePath = path.join(backupTimestampDir, filePath.replace(/[\/\\]/g, '_'));
+                await fs.writeFile(backupFilePath, content, 'utf8');
+                
+                backupInfo.files[filePath] = {
+                    originalPath: filePath,
+                    backupPath: backupFilePath,
+                    size: content.length,
+                    checksum: this.generateChecksum(content)
+                };
+            }
+            
+            // Save backup metadata
+            const metadataPath = path.join(backupTimestampDir, 'backup-info.json');
+            await fs.writeFile(metadataPath, JSON.stringify(backupInfo, null, 2));
+            
+            // Add to operation log
+            this.operationLog.push({
+                timestamp,
+                type: 'backup',
+                status: 'success',
+                filesCount: Object.keys(backupInfo.files).length
+            });
+            
+            await this.saveOperationLog();
+            
+            console.log(`✅ Backup completed: ${Object.keys(backupInfo.files).length} files backed up`);
+            
+            // Auto-cleanup old backups after creating new one
+            if (this.autoCleanup) {
+                await this.cleanupOldBackups(this.maxBackups);
+            }
+            
+            return timestamp;
+            
+        } catch (error) {
+            console.error('❌ Backup creation failed:', error);
+            this.operationLog.push({
+                timestamp,
+                type: 'backup',
+                status: 'failed',
+                error: error.message
+            });
+            await this.saveOperationLog();
+            throw error;
         }
-        
-        return timestamp;
+    }
+
+    generateChecksum(content) {
+        // Simple checksum for file integrity verification
+        let hash = 0;
+        for (let i = 0; i < content.length; i++) {
+            const char = content.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash; // Convert to 32-bit integer
+        }
+        return hash.toString(16);
+    }
+
+    async saveOperationLog() {
+        try {
+            const logFile = path.join(this.backupDir, 'operations.log');
+            await fs.writeFile(logFile, JSON.stringify(this.operationLog, null, 2));
+        } catch (error) {
+            console.error('⚠️ Failed to save operation log:', error);
+        }
+    }
+
+    async cleanupOldBackups(maxKeep = 10) {
+        try {
+            const backupEntries = await fs.readdir(this.backupDir);
+            const timestampDirs = backupEntries
+                .filter(entry => /^\d+$/.test(entry))
+                .map(dir => ({
+                    dir,
+                    timestamp: parseInt(dir),
+                    path: path.join(this.backupDir, dir)
+                }))
+                .sort((a, b) => b.timestamp - a.timestamp);
+            
+            if (timestampDirs.length > maxKeep) {
+                const toDelete = timestampDirs.slice(maxKeep);
+                let deletedCount = 0;
+                
+                for (const backup of toDelete) {
+                    try {
+                        await fs.rm(backup.path, { recursive: true, force: true });
+                        deletedCount++;
+                    } catch (error) {
+                        console.error(`Failed to remove backup ${backup.dir}:`, error.message);
+                    }
+                }
+                
+                if (deletedCount > 0) {
+                    console.log(`🧹 Cleaned up ${deletedCount} old backups`);
+                }
+            }
+        } catch (error) {
+            console.error('⚠️ Backup cleanup failed:', error);
+        }
     }
 
     async restoreBackup(timestamp) {
