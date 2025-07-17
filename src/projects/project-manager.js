@@ -125,12 +125,36 @@ class ProjectManager {
                 )
             `;
 
+            const createRemindersTable = `
+                CREATE TABLE IF NOT EXISTS reminders (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    project_id INTEGER,
+                    title TEXT NOT NULL,
+                    description TEXT,
+                    reminder_type TEXT DEFAULT 'one_time',
+                    reminder_date DATETIME NOT NULL,
+                    is_recurring INTEGER DEFAULT 0,
+                    recurrence_pattern TEXT,
+                    recurrence_end_date DATETIME,
+                    status TEXT DEFAULT 'active',
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    created_by TEXT DEFAULT 'manual',
+                    priority INTEGER DEFAULT 1,
+                    notification_sent INTEGER DEFAULT 0,
+                    last_reminded DATETIME,
+                    snooze_until DATETIME,
+                    FOREIGN KEY (project_id) REFERENCES projects (id)
+                )
+            `;
+
             this.db.serialize(() => {
                 this.db.run(createProjectsTable);
                 this.db.run(createTasksTable);
                 this.db.run(createNotesTable);
                 this.db.run(createInventoryTable);
-                this.db.run(createTimelineTable, (err) => {
+                this.db.run(createTimelineTable);
+                this.db.run(createRemindersTable, (err) => {
                     if (err) {
                         reject(err);
                     } else {
@@ -159,6 +183,28 @@ class ProjectManager {
                     reject(err);
                 } else {
                     resolve(rows);
+                }
+            });
+        });
+    }
+
+    async getProjectById(projectId) {
+        return new Promise((resolve, reject) => {
+            const query = `
+                SELECT p.*, 
+                       COUNT(t.id) as task_count,
+                       COUNT(CASE WHEN t.status = 'completed' THEN 1 END) as completed_tasks
+                FROM projects p
+                LEFT JOIN tasks t ON p.id = t.project_id
+                WHERE p.id = ? AND p.status != 'deleted'
+                GROUP BY p.id
+            `;
+            
+            this.db.get(query, [projectId], (err, row) => {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve(row);
                 }
             });
         });
@@ -360,6 +406,275 @@ class ProjectManager {
         });
     }
 
+    async addReminder(reminderData) {
+        return new Promise((resolve, reject) => {
+            const {
+                projectId,
+                title,
+                description = '',
+                reminderDate,
+                isRecurring = false,
+                recurrencePattern = null,
+                recurrenceEndDate = null,
+                priority = 1,
+                createdBy = 'manual'
+            } = reminderData;
+
+            if (!projectId || !title || !reminderDate) {
+                reject(new Error('Project ID, title, and reminder date are required'));
+                return;
+            }
+
+            const query = `
+                INSERT INTO reminders (project_id, title, description, reminder_date, is_recurring, 
+                                     recurrence_pattern, recurrence_end_date, priority, created_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `;
+
+            this.db.run(query, [
+                projectId, title, description, reminderDate, isRecurring ? 1 : 0, 
+                recurrencePattern, recurrenceEndDate, priority, createdBy
+            ], function(err) {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve({
+                        id: this.lastID,
+                        projectId: projectId,
+                        title: title,
+                        reminderDate: reminderDate,
+                        isRecurring: isRecurring
+                    });
+                }
+            });
+        });
+    }
+
+    async getReminders(projectId = null, includeInactive = false) {
+        return new Promise((resolve, reject) => {
+            let query = `
+                SELECT r.*, p.name as project_name
+                FROM reminders r
+                LEFT JOIN projects p ON r.project_id = p.id
+            `;
+            
+            const conditions = [];
+            const params = [];
+            
+            if (projectId) {
+                conditions.push('r.project_id = ?');
+                params.push(projectId);
+            }
+            
+            if (!includeInactive) {
+                conditions.push("r.status != 'inactive'");
+            }
+            
+            if (conditions.length > 0) {
+                query += ' WHERE ' + conditions.join(' AND ');
+            }
+            
+            query += ' ORDER BY r.reminder_date ASC';
+
+            this.db.all(query, params, (err, rows) => {
+                if (err) {
+                    reject(err);
+                } else {
+                    // Parse recurrence pattern if it exists
+                    const remindersWithParsedData = rows.map(reminder => ({
+                        ...reminder,
+                        is_recurring: Boolean(reminder.is_recurring),
+                        recurrence_pattern: reminder.recurrence_pattern ? JSON.parse(reminder.recurrence_pattern) : null
+                    }));
+                    resolve(remindersWithParsedData);
+                }
+            });
+        });
+    }
+
+    async updateReminder(reminderId, updates) {
+        return new Promise((resolve, reject) => {
+            const allowedFields = ['title', 'description', 'reminder_date', 'is_recurring', 
+                                 'recurrence_pattern', 'recurrence_end_date', 'status', 'priority'];
+            const updateFields = [];
+            const values = [];
+
+            Object.keys(updates).forEach(key => {
+                if (allowedFields.includes(key)) {
+                    updateFields.push(`${key} = ?`);
+                    let value = updates[key];
+                    // Handle boolean conversion for is_recurring
+                    if (key === 'is_recurring') {
+                        value = value ? 1 : 0;
+                    }
+                    // Handle JSON stringification for recurrence_pattern
+                    if (key === 'recurrence_pattern' && typeof value === 'object') {
+                        value = JSON.stringify(value);
+                    }
+                    values.push(value);
+                }
+            });
+
+            if (updateFields.length === 0) {
+                resolve({ success: false, error: 'No valid fields to update' });
+                return;
+            }
+
+            updateFields.push('updated_at = CURRENT_TIMESTAMP');
+            values.push(reminderId);
+
+            const query = `UPDATE reminders SET ${updateFields.join(', ')} WHERE id = ?`;
+
+            this.db.run(query, values, function(err) {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve({
+                        success: true,
+                        message: `Reminder ${reminderId} updated successfully`,
+                        changes: this.changes
+                    });
+                }
+            });
+        });
+    }
+
+    async deleteReminder(reminderId) {
+        return new Promise((resolve, reject) => {
+            const query = `UPDATE reminders SET status = 'inactive', updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
+
+            this.db.run(query, [reminderId], function(err) {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve({
+                        success: true,
+                        message: `Reminder ${reminderId} deleted successfully`,
+                        changes: this.changes
+                    });
+                }
+            });
+        });
+    }
+
+    async snoozeReminder(reminderId, snoozeUntil) {
+        return new Promise((resolve, reject) => {
+            const query = `UPDATE reminders SET snooze_until = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
+
+            this.db.run(query, [snoozeUntil, reminderId], function(err) {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve({
+                        success: true,
+                        message: `Reminder ${reminderId} snoozed until ${snoozeUntil}`,
+                        changes: this.changes
+                    });
+                }
+            });
+        });
+    }
+
+    async markReminderNotified(reminderId) {
+        return new Promise((resolve, reject) => {
+            const query = `UPDATE reminders SET notification_sent = 1, last_reminded = CURRENT_TIMESTAMP WHERE id = ?`;
+
+            this.db.run(query, [reminderId], function(err) {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve({
+                        success: true,
+                        message: `Reminder ${reminderId} marked as notified`
+                    });
+                }
+            });
+        });
+    }
+
+    async getDueReminders() {
+        return new Promise((resolve, reject) => {
+            const now = new Date().toISOString();
+            const query = `
+                SELECT r.*, p.name as project_name
+                FROM reminders r
+                LEFT JOIN projects p ON r.project_id = p.id
+                WHERE r.status = 'active' 
+                  AND r.reminder_date <= ?
+                  AND (r.snooze_until IS NULL OR r.snooze_until <= ?)
+                ORDER BY r.reminder_date ASC
+            `;
+
+            this.db.all(query, [now, now], (err, rows) => {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve(rows);
+                }
+            });
+        });
+    }
+
+    async addProjectNote(noteData) {
+        return new Promise((resolve, reject) => {
+            const {
+                projectId,
+                content,
+                context = '',
+                tags = [],
+                noteType = 'project_note',
+                createdBy = 'manual'
+            } = noteData;
+
+            if (!projectId || !content) {
+                reject(new Error('Project ID and content are required'));
+                return;
+            }
+
+            const query = `
+                INSERT INTO notes (project_id, content, context, tags, note_type, created_at)
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            `;
+
+            const tagsString = Array.isArray(tags) ? tags.join(',') : tags;
+            const contextString = typeof context === 'object' ? JSON.stringify(context) : context;
+
+            this.db.run(query, [projectId, content, contextString, tagsString, noteType], function(err) {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve({
+                        id: this.lastID,
+                        projectId: projectId,
+                        content: content,
+                        timestamp: new Date().toISOString()
+                    });
+                }
+            });
+        });
+    }
+
+    async getProjectNotes(projectId, limit = 50) {
+        return new Promise((resolve, reject) => {
+            const query = `
+                SELECT n.*, p.name as project_name
+                FROM notes n
+                LEFT JOIN projects p ON n.project_id = p.id
+                WHERE n.project_id = ? AND n.note_type = 'project_note'
+                ORDER BY n.created_at DESC
+                LIMIT ?
+            `;
+
+            this.db.all(query, [projectId, limit], (err, rows) => {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve(rows);
+                }
+            });
+        });
+    }
+
     async addInventoryItem(itemData) {
         return new Promise((resolve, reject) => {
             const {
@@ -537,6 +852,9 @@ class ProjectManager {
                 case 'get_projects':
                     return { success: true, data: await this.getAllProjects() };
                 
+                case 'get_project':
+                    return { success: true, data: await this.getProjectById(data.id) };
+                
                 case 'get_inventory':
                     return { success: true, data: await this.getInventory(data.category) };
                 
@@ -607,6 +925,31 @@ class ProjectManager {
                 
                 case 'get_timeline':
                     return { success: true, data: await this.getProjectTimeline(data.projectId) };
+                
+                // Reminder actions
+                case 'add_reminder':
+                    return { success: true, data: await this.addReminder(data), message: `Reminder "${data.title}" added successfully` };
+                
+                case 'get_reminders':
+                    return { success: true, data: await this.getReminders(data.projectId, data.includeInactive) };
+                
+                case 'update_reminder':
+                    return await this.updateReminder(data.id, data.updates);
+                
+                case 'delete_reminder':
+                    return await this.deleteReminder(data.id);
+                
+                case 'snooze_reminder':
+                    return await this.snoozeReminder(data.id, data.snoozeUntil);
+                
+                case 'get_due_reminders':
+                    return { success: true, data: await this.getDueReminders() };
+                
+                case 'add_project_note':
+                    return { success: true, data: await this.addProjectNote(data), message: `Note added to project successfully` };
+                
+                case 'get_project_notes':
+                    return { success: true, data: await this.getProjectNotes(data.projectId, data.limit) };
                 
                 // Handle common project management actions that aren't implemented yet
                 case 'move_project_stage':

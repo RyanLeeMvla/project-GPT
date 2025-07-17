@@ -436,6 +436,12 @@ class GptUI {
             }
         });
         
+        // Listen for notification click events
+        ipcRenderer.on('show-project-reminder', (event, data) => {
+            console.log('🔔 Received show-project-reminder event:', data);
+            this.handleNotificationClick(data);
+        });
+        
         // Listen for rewriting completion
         ipcRenderer.on('rewriting-complete', (event, data) => {
             this.hideRewritingModal();
@@ -1572,137 +1578,401 @@ class GptUI {
                         ">&times;</button>
                     </div>
                     
-                    <form id="editProjectForm">
-                        <div class="form-group" style="margin-bottom: 16px;">
-                            <label style="display: block; margin-bottom: 8px; color: #ffffff; font-weight: 500;">
-                                Project Name *
-                            </label>
-                            <input type="text" id="editProjectName" required style="
-                                width: 100%;
-                                padding: 12px;
-                                border: 1px solid #333;
-                                border-radius: 6px;
-                                background: #2a2a2a;
-                                color: #ffffff;
-                                font-size: 14px;
-                            ">
+                    <div class="modal-tabs" style="
+                        display: flex;
+                        margin-bottom: 20px;
+                        border-bottom: 1px solid #333;
+                    ">
+                        <button class="tab-button active" data-tab="details" style="
+                            padding: 12px 20px;
+                            border: none;
+                            background: none;
+                            color: #00d4ff;
+                            cursor: pointer;
+                            border-bottom: 2px solid #00d4ff;
+                            font-weight: 500;
+                        ">Details</button>
+                        <button class="tab-button" data-tab="notes" style="
+                            padding: 12px 20px;
+                            border: none;
+                            background: none;
+                            color: #ccc;
+                            cursor: pointer;
+                            border-bottom: 2px solid transparent;
+                        ">Notes</button>
+                        <button class="tab-button" data-tab="reminders" style="
+                            padding: 12px 20px;
+                            border: none;
+                            background: none;
+                            color: #ccc;
+                            cursor: pointer;
+                            border-bottom: 2px solid transparent;
+                        ">Reminders</button>
+                    </div>
+                    
+                    <div class="tab-content">
+                        <div id="details-tab" class="tab-pane active">
+                            <form id="editProjectForm">
+                                <div class="form-group" style="margin-bottom: 16px;">
+                                    <label style="display: block; margin-bottom: 8px; color: #ffffff; font-weight: 500;">
+                                        Project Name *
+                                    </label>
+                                    <input type="text" id="editProjectName" required style="
+                                        width: 100%;
+                                        padding: 12px;
+                                        border: 1px solid #333;
+                                        border-radius: 6px;
+                                        background: #2a2a2a;
+                                        color: #ffffff;
+                                        font-size: 14px;
+                                    ">
+                                </div>
+                                
+                                <div class="form-group" style="margin-bottom: 16px;">
+                                    <label style="display: block; margin-bottom: 8px; color: #ffffff; font-weight: 500;">
+                                        Description
+                                    </label>
+                                    <textarea id="editProjectDescription" rows="3" style="
+                                        width: 100%;
+                                        padding: 12px;
+                                        border: 1px solid #333;
+                                        border-radius: 6px;
+                                        background: #2a2a2a;
+                                        color: #ffffff;
+                                        font-size: 14px;
+                                        resize: vertical;
+                                    "></textarea>
+                                </div>
+                                
+                                <div class="form-group" style="margin-bottom: 16px;">
+                                    <label style="display: block; margin-bottom: 8px; color: #ffffff; font-weight: 500;">
+                                        Type
+                                    </label>
+                                    <select id="editProjectType" style="
+                                        width: 100%;
+                                        padding: 12px;
+                                        border: 1px solid #333;
+                                        border-radius: 6px;
+                                        background: #2a2a2a;
+                                        color: #ffffff;
+                                        font-size: 14px;
+                                    ">
+                                        <option value="general">General</option>
+                                        <option value="development">Development</option>
+                                        <option value="research">Research</option>
+                                        <option value="design">Design</option>
+                                        <option value="marketing">Marketing</option>
+                                        <option value="other">Other</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group" style="margin-bottom: 16px;">
+                                    <label style="display: block; margin-bottom: 8px; color: #ffffff; font-weight: 500;">
+                                        Status
+                                    </label>
+                                    <select id="editProjectStatus" style="
+                                        width: 100%;
+                                        padding: 12px;
+                                        border: 1px solid #333;
+                                        border-radius: 6px;
+                                        background: #2a2a2a;
+                                        color: #ffffff;
+                                        font-size: 14px;
+                                    ">
+                                        <option value="active">Active</option>
+                                        <option value="planning">Planning</option>
+                                        <option value="in_progress">In Progress</option>
+                                        <option value="testing">Testing</option>
+                                        <option value="completed">Completed</option>
+                                        <option value="on_hold">On Hold</option>
+                                        <option value="cancelled">Cancelled</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group" style="margin-bottom: 16px;">
+                                    <label style="display: block; margin-bottom: 8px; color: #ffffff; font-weight: 500;">
+                                        Priority (1-5)
+                                    </label>
+                                    <input type="number" id="editProjectPriority" min="1" max="5" style="
+                                        width: 100%;
+                                        padding: 12px;
+                                        border: 1px solid #333;
+                                        border-radius: 6px;
+                                        background: #2a2a2a;
+                                        color: #ffffff;
+                                        font-size: 14px;
+                                    ">
+                                </div>
+                                
+                                <div class="form-actions" style="
+                                    display: flex;
+                                    gap: 12px;
+                                    margin-top: 24px;
+                                    padding-top: 16px;
+                                    border-top: 1px solid #333;
+                                ">
+                                    <button type="button" id="cancelEditProject" style="
+                                        flex: 1;
+                                        padding: 12px 20px;
+                                        border: 1px solid #333;
+                                        border-radius: 6px;
+                                        background: #2a2a2a;
+                                        color: #ffffff;
+                                        cursor: pointer;
+                                        font-size: 14px;
+                                        transition: all 0.3s ease;
+                                    ">Cancel</button>
+                                    <button type="submit" id="saveEditProject" style="
+                                        flex: 1;
+                                        padding: 12px 20px;
+                                        border: none;
+                                        border-radius: 6px;
+                                        background: #00d4ff;
+                                        color: white;
+                                        cursor: pointer;
+                                        font-size: 14px;
+                                        font-weight: 500;
+                                        transition: all 0.3s ease;
+                                    ">Save Changes</button>
+                                </div>
+                            </form>
                         </div>
                         
-                        <div class="form-group" style="margin-bottom: 16px;">
-                            <label style="display: block; margin-bottom: 8px; color: #ffffff; font-weight: 500;">
-                                Description
-                            </label>
-                            <textarea id="editProjectDescription" rows="3" style="
-                                width: 100%;
-                                padding: 12px;
-                                border: 1px solid #333;
-                                border-radius: 6px;
-                                background: #2a2a2a;
-                                color: #ffffff;
-                                font-size: 14px;
-                                resize: vertical;
-                            "></textarea>
+                        <div id="notes-tab" class="tab-pane" style="display: none;">
+                            <div class="notes-section">
+                                <div class="add-note-form" style="
+                                    background: #2a2a2a;
+                                    padding: 16px;
+                                    border-radius: 8px;
+                                    margin-bottom: 20px;
+                                ">
+                                    <h3 style="margin: 0 0 16px 0; color: #ffffff; font-size: 16px;">Add New Note</h3>
+                                    <textarea id="newNoteContent" placeholder="Write your note here..." style="
+                                        width: 100%;
+                                        padding: 12px;
+                                        border: 1px solid #333;
+                                        border-radius: 6px;
+                                        background: #1a1a1a;
+                                        color: #ffffff;
+                                        font-size: 14px;
+                                        resize: vertical;
+                                        min-height: 80px;
+                                    "></textarea>
+                                    <div style="
+                                        display: flex;
+                                        gap: 8px;
+                                        margin-top: 12px;
+                                    ">
+                                        <input type="text" id="newNoteTags" placeholder="Tags (comma separated)" style="
+                                            flex: 1;
+                                            padding: 8px;
+                                            border: 1px solid #333;
+                                            border-radius: 4px;
+                                            background: #1a1a1a;
+                                            color: #ffffff;
+                                            font-size: 12px;
+                                        ">
+                                        <button type="button" id="addProjectNote" style="
+                                            padding: 8px 16px;
+                                            border: none;
+                                            border-radius: 4px;
+                                            background: #00d4ff;
+                                            color: white;
+                                            cursor: pointer;
+                                            font-size: 12px;
+                                            font-weight: 500;
+                                        ">Add Note</button>
+                                    </div>
+                                </div>
+                                
+                                <div class="notes-list" id="projectNotesList" style="
+                                    max-height: 300px;
+                                    overflow-y: auto;
+                                ">
+                                    <!-- Notes will be loaded here -->
+                                </div>
+                            </div>
                         </div>
                         
-                        <div class="form-group" style="margin-bottom: 16px;">
-                            <label style="display: block; margin-bottom: 8px; color: #ffffff; font-weight: 500;">
-                                Project Type
-                            </label>
-                            <select id="editProjectType" style="
-                                width: 100%;
-                                padding: 12px;
-                                border: 1px solid #333;
-                                border-radius: 6px;
-                                background: #2a2a2a;
-                                color: #ffffff;
-                                font-size: 14px;
-                            ">
-                                <option value="general">General</option>
-                                <option value="software">Software</option>
-                                <option value="hardware">Hardware</option>
-                                <option value="3d-printing">3D Printing</option>
-                                <option value="web-development">Web Development</option>
-                                <option value="mobile-development">Mobile Development</option>
-                                <option value="research">Research</option>
-                                <option value="documentation">Documentation</option>
-                            </select>
+                        <div id="reminders-tab" class="tab-pane" style="display: none;">
+                            <div class="reminders-section">
+                                <div class="add-reminder-form" style="
+                                    background: #2a2a2a;
+                                    padding: 16px;
+                                    border-radius: 8px;
+                                    margin-bottom: 20px;
+                                ">
+                                    <h3 style="margin: 0 0 16px 0; color: #ffffff; font-size: 16px;">Add New Reminder</h3>
+                                    <div class="form-group" style="margin-bottom: 12px;">
+                                        <input type="text" id="newReminderTitle" placeholder="Reminder title..." style="
+                                            width: 100%;
+                                            padding: 12px;
+                                            border: 1px solid #333;
+                                            border-radius: 6px;
+                                            background: #1a1a1a;
+                                            color: #ffffff;
+                                            font-size: 14px;
+                                        ">
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 12px;">
+                                        <textarea id="newReminderDescription" placeholder="Description (optional)..." style="
+                                            width: 100%;
+                                            padding: 12px;
+                                            border: 1px solid #333;
+                                            border-radius: 6px;
+                                            background: #1a1a1a;
+                                            color: #ffffff;
+                                            font-size: 14px;
+                                            resize: vertical;
+                                            min-height: 60px;
+                                        "></textarea>
+                                    </div>
+                                    <div style="
+                                        display: flex;
+                                        gap: 12px;
+                                        margin-bottom: 12px;
+                                    ">
+                                        <div style="flex: 1;">
+                                            <label style="display: block; margin-bottom: 4px; color: #ccc; font-size: 12px;">Date</label>
+                                            <input type="date" id="newReminderDate" style="
+                                                width: 100%;
+                                                padding: 8px;
+                                                border: 1px solid #333;
+                                                border-radius: 4px;
+                                                background: #1a1a1a;
+                                                color: #ffffff;
+                                                font-size: 12px;
+                                            ">
+                                        </div>
+                                        <div style="flex: 1;">
+                                            <label style="display: block; margin-bottom: 4px; color: #ccc; font-size: 12px;">Time</label>
+                                            <input type="time" id="newReminderTime" style="
+                                                width: 100%;
+                                                padding: 8px;
+                                                border: 1px solid #333;
+                                                border-radius: 4px;
+                                                background: #1a1a1a;
+                                                color: #ffffff;
+                                                font-size: 12px;
+                                            ">
+                                        </div>
+                                    </div>
+                                    <div style="
+                                        display: flex;
+                                        gap: 12px;
+                                        margin-bottom: 12px;
+                                        align-items: center;
+                                    ">
+                                        <label style="
+                                            display: flex;
+                                            align-items: center;
+                                            color: #ccc;
+                                            font-size: 12px;
+                                            cursor: pointer;
+                                        ">
+                                            <input type="checkbox" id="newReminderRecurring" style="
+                                                margin-right: 8px;
+                                                transform: scale(1.2);
+                                            ">
+                                            Recurring Reminder
+                                        </label>
+                                        <select id="newReminderRecurrence" style="
+                                            padding: 6px;
+                                            border: 1px solid #333;
+                                            border-radius: 4px;
+                                            background: #1a1a1a;
+                                            color: #ffffff;
+                                            font-size: 12px;
+                                            display: none;
+                                        ">
+                                            <option value="daily">Daily</option>
+                                            <option value="weekly">Weekly</option>
+                                            <option value="monthly">Monthly</option>
+                                            <option value="yearly">Yearly</option>
+                                        </select>
+                                    </div>
+                                    <div style="
+                                        display: flex;
+                                        gap: 8px;
+                                        align-items: center;
+                                    ">
+                                        <select id="newReminderPriority" style="
+                                            padding: 8px;
+                                            border: 1px solid #333;
+                                            border-radius: 4px;
+                                            background: #1a1a1a;
+                                            color: #ffffff;
+                                            font-size: 12px;
+                                        ">
+                                            <option value="1">Low Priority</option>
+                                            <option value="2">Medium Priority</option>
+                                            <option value="3" selected>High Priority</option>
+                                        </select>
+                                        <button type="button" id="addProjectReminder" style="
+                                            padding: 8px 16px;
+                                            border: none;
+                                            border-radius: 4px;
+                                            background: #00d4ff;
+                                            color: white;
+                                            cursor: pointer;
+                                            font-size: 12px;
+                                            font-weight: 500;
+                                        ">Add Reminder</button>
+                                    </div>
+                                </div>
+                                
+                                <div class="reminders-list" id="projectRemindersList" style="
+                                    max-height: 300px;
+                                    overflow-y: auto;
+                                ">
+                                    <!-- Reminders will be loaded here -->
+                                </div>
+                            </div>
                         </div>
-                        
-                        <div class="form-group" style="margin-bottom: 16px;">
-                            <label style="display: block; margin-bottom: 8px; color: #ffffff; font-weight: 500;">
-                                Status
-                            </label>
-                            <select id="editProjectStatus" style="
-                                width: 100%;
-                                padding: 12px;
-                                border: 1px solid #333;
-                                border-radius: 6px;
-                                background: #2a2a2a;
-                                color: #ffffff;
-                                font-size: 14px;
-                            ">
-                                <option value="planning">Planning</option>
-                                <option value="active">Active</option>
-                                <option value="in_progress">In Progress</option>
-                                <option value="testing">Testing</option>
-                                <option value="review">Review</option>
-                                <option value="completed">Completed</option>
-                                <option value="on_hold">On Hold</option>
-                                <option value="cancelled">Cancelled</option>
-                            </select>
-                        </div>
-                        
-                        <div class="form-group" style="margin-bottom: 16px;">
-                            <label style="display: block; margin-bottom: 8px; color: #ffffff; font-weight: 500;">
-                                Priority (1-5)
-                            </label>
-                            <input type="number" id="editProjectPriority" min="1" max="5" style="
-                                width: 100%;
-                                padding: 12px;
-                                border: 1px solid #333;
-                                border-radius: 6px;
-                                background: #2a2a2a;
-                                color: #ffffff;
-                                font-size: 14px;
-                            ">
-                        </div>
-                        
-                        <div class="form-actions" style="
-                            display: flex;
-                            gap: 12px;
-                            margin-top: 24px;
-                            padding-top: 16px;
-                            border-top: 1px solid #333;
-                        ">
-                            <button type="button" id="cancelEditProject" style="
-                                flex: 1;
-                                padding: 12px 20px;
-                                border: 1px solid #333;
-                                border-radius: 6px;
-                                background: #2a2a2a;
-                                color: #ffffff;
-                                cursor: pointer;
-                                font-size: 14px;
-                                transition: all 0.3s ease;
-                            ">Cancel</button>
-                            <button type="submit" id="saveEditProject" style="
-                                flex: 1;
-                                padding: 12px 20px;
-                                border: none;
-                                border-radius: 6px;
-                                background: #00d4ff;
-                                color: white;
-                                cursor: pointer;
-                                font-size: 14px;
-                                font-weight: 500;
-                                transition: all 0.3s ease;
-                            ">Save Changes</button>
-                        </div>
-                    </form>
+                    </div>
                 </div>
             `;
             
             document.body.appendChild(modal);
+            
+            // Add tab switching functionality
+            const tabButtons = modal.querySelectorAll('.tab-button');
+            const tabPanes = modal.querySelectorAll('.tab-pane');
+            
+            tabButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const targetTab = button.dataset.tab;
+                    
+                    // Update button styles
+                    tabButtons.forEach(btn => {
+                        btn.style.color = '#ccc';
+                        btn.style.borderBottom = '2px solid transparent';
+                    });
+                    button.style.color = '#00d4ff';
+                    button.style.borderBottom = '2px solid #00d4ff';
+                    
+                    // Show/hide tab content
+                    tabPanes.forEach(pane => {
+                        pane.style.display = 'none';
+                    });
+                    document.getElementById(`${targetTab}-tab`).style.display = 'block';
+                    
+                    // Load content when switching to notes or reminders
+                    if (targetTab === 'notes') {
+                        this.loadProjectNotes(project.id);
+                    } else if (targetTab === 'reminders') {
+                        this.loadProjectReminders(project.id);
+                    }
+                });
+            });
+            
+            // Add recurring reminder toggle
+            const recurringCheckbox = document.getElementById('newReminderRecurring');
+            const recurrenceSelect = document.getElementById('newReminderRecurrence');
+            
+            recurringCheckbox.addEventListener('change', () => {
+                recurrenceSelect.style.display = recurringCheckbox.checked ? 'block' : 'none';
+            });
         }
         
         // Populate form with project data
@@ -1715,11 +1985,146 @@ class GptUI {
         // Store project ID for saving
         modal.dataset.projectId = project.id;
         
+        // Load initial content
+        this.loadProjectNotes(project.id);
+        this.loadProjectReminders(project.id);
+        
         // Show modal
         modal.style.display = 'flex';
         
         // Add event listeners
-        this.setupEditModalListeners();
+        this.addProjectModalEventListeners(modal, project);
+    }
+
+    addProjectModalEventListeners(modal, project) {
+        // Add note functionality
+        const addNoteBtn = document.getElementById('addProjectNote');
+        const noteContent = document.getElementById('newNoteContent');
+        const noteTags = document.getElementById('newNoteTags');
+        
+        if (addNoteBtn) {
+            addNoteBtn.addEventListener('click', async () => {
+                const content = noteContent.value.trim();
+                if (!content) return;
+                
+                try {
+                    const response = await ipcRenderer.invoke('project-action', {
+                        action: 'add_project_note',
+                        data: {
+                            projectId: project.id,
+                            content: content,
+                            tags: noteTags.value.split(',').map(tag => tag.trim()).filter(tag => tag),
+                            createdBy: 'manual'
+                        }
+                    });
+                    
+                    if (response.success) {
+                        noteContent.value = '';
+                        noteTags.value = '';
+                        this.loadProjectNotes(project.id);
+                        this.showNotification('Note added successfully', 'success');
+                    } else {
+                        this.showNotification('Failed to add note: ' + response.error, 'error');
+                    }
+                } catch (error) {
+                    console.error('Error adding note:', error);
+                    this.showNotification('Error adding note', 'error');
+                }
+            });
+        }
+        
+        // Add reminder functionality
+        const addReminderBtn = document.getElementById('addProjectReminder');
+        const reminderTitle = document.getElementById('newReminderTitle');
+        const reminderDescription = document.getElementById('newReminderDescription');
+        const reminderDate = document.getElementById('newReminderDate');
+        const reminderTime = document.getElementById('newReminderTime');
+        const reminderRecurring = document.getElementById('newReminderRecurring');
+        const reminderRecurrence = document.getElementById('newReminderRecurrence');
+        const reminderPriority = document.getElementById('newReminderPriority');
+        
+        if (addReminderBtn) {
+            addReminderBtn.addEventListener('click', async () => {
+                const title = reminderTitle.value.trim();
+                const date = reminderDate.value;
+                const time = reminderTime.value;
+                
+                if (!title || !date || !time) {
+                    this.showNotification('Please fill in title, date, and time', 'error');
+                    return;
+                }
+                
+                const reminderDateTime = new Date(`${date}T${time}`);
+                
+                try {
+                    const reminderData = {
+                        projectId: project.id,
+                        title: title,
+                        description: reminderDescription.value.trim(),
+                        reminderDate: reminderDateTime.toISOString(),
+                        isRecurring: reminderRecurring.checked,
+                        priority: parseInt(reminderPriority.value),
+                        createdBy: 'manual'
+                    };
+                    
+                    if (reminderRecurring.checked) {
+                        reminderData.recurrencePattern = {
+                            type: reminderRecurrence.value,
+                            interval: 1
+                        };
+                    }
+                    
+                    const response = await ipcRenderer.invoke('project-action', {
+                        action: 'add_reminder',
+                        data: reminderData
+                    });
+                    
+                    if (response.success) {
+                        reminderTitle.value = '';
+                        reminderDescription.value = '';
+                        reminderDate.value = '';
+                        reminderTime.value = '';
+                        reminderRecurring.checked = false;
+                        reminderRecurrence.style.display = 'none';
+                        reminderPriority.value = '3';
+                        this.loadProjectReminders(project.id);
+                        this.showNotification('Reminder added successfully', 'success');
+                    } else {
+                        this.showNotification('Failed to add reminder: ' + response.error, 'error');
+                    }
+                } catch (error) {
+                    console.error('Error adding reminder:', error);
+                    this.showNotification('Error adding reminder', 'error');
+                }
+            });
+        }
+        
+        // Add existing modal event listeners
+        const closeBtn = document.getElementById('closeEditModal');
+        const cancelBtn = document.getElementById('cancelEditProject');
+        const saveBtn = document.getElementById('saveEditProject');
+        const form = document.getElementById('editProjectForm');
+        
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                modal.style.display = 'none';
+                document.body.removeChild(modal);
+            });
+        }
+        
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', () => {
+                modal.style.display = 'none';
+                document.body.removeChild(modal);
+            });
+        }
+        
+        if (form) {
+            form.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.saveProjectChanges(project.id);
+            });
+        }
     }
     
     setupEditModalListeners() {
@@ -1783,6 +2188,284 @@ class GptUI {
         } catch (error) {
             console.error('Error updating project:', error);
             this.showError('Failed to update project: ' + error.message);
+        }
+    }
+
+    async loadProjectNotes(projectId) {
+        try {
+            const response = await ipcRenderer.invoke('project-action', {
+                action: 'get_project_notes',
+                data: { projectId: projectId, limit: 50 }
+            });
+            
+            if (response.success) {
+                this.displayProjectNotes(response.data);
+            }
+        } catch (error) {
+            console.error('Error loading project notes:', error);
+        }
+    }
+    
+    displayProjectNotes(notes) {
+        const notesList = document.getElementById('projectNotesList');
+        if (!notesList) return;
+        
+        if (notes.length === 0) {
+            notesList.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">No notes yet</div>';
+            return;
+        }
+        
+        notesList.innerHTML = notes.map(note => `
+            <div class="note-item" style="
+                background: #2a2a2a;
+                padding: 16px;
+                border-radius: 8px;
+                margin-bottom: 12px;
+                border-left: 3px solid #00d4ff;
+            ">
+                <div style="
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: flex-start;
+                    margin-bottom: 8px;
+                ">
+                    <div style="
+                        font-size: 12px;
+                        color: #999;
+                    ">
+                        ${new Date(note.created_at).toLocaleDateString()} ${new Date(note.created_at).toLocaleTimeString()}
+                    </div>
+                    <div style="
+                        display: flex;
+                        gap: 8px;
+                    ">
+                        ${note.tags ? note.tags.split(',').map(tag => tag.trim()).filter(tag => tag).map(tag => 
+                            `<span style="
+                                background: #00d4ff;
+                                color: white;
+                                padding: 2px 6px;
+                                border-radius: 3px;
+                                font-size: 10px;
+                            ">${tag}</span>`
+                        ).join('') : ''}
+                    </div>
+                </div>
+                <div style="
+                    color: #fff;
+                    line-height: 1.4;
+                    white-space: pre-wrap;
+                ">${note.content}</div>
+            </div>
+        `).join('');
+    }
+    
+    async loadProjectReminders(projectId) {
+        try {
+            const response = await ipcRenderer.invoke('project-action', {
+                action: 'get_reminders',
+                data: { projectId: projectId, includeInactive: false }
+            });
+            
+            if (response.success) {
+                this.displayProjectReminders(response.data);
+            }
+        } catch (error) {
+            console.error('Error loading project reminders:', error);
+        }
+    }
+    
+    displayProjectReminders(reminders) {
+        const remindersList = document.getElementById('projectRemindersList');
+        if (!remindersList) return;
+        
+        if (reminders.length === 0) {
+            remindersList.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">No reminders yet</div>';
+            return;
+        }
+        
+        remindersList.innerHTML = reminders.map(reminder => {
+            const reminderDate = new Date(reminder.reminder_date);
+            const isOverdue = reminderDate < new Date();
+            const priorityColor = reminder.priority === 3 ? '#ff4444' : 
+                                 reminder.priority === 2 ? '#ffaa00' : '#00d4ff';
+            
+            return `
+                <div class="reminder-item" style="
+                    background: #2a2a2a;
+                    padding: 16px;
+                    border-radius: 8px;
+                    margin-bottom: 12px;
+                    border-left: 3px solid ${priorityColor};
+                    ${isOverdue ? 'border: 2px solid #ff4444;' : ''}
+                ">
+                    <div style="
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: flex-start;
+                        margin-bottom: 8px;
+                    ">
+                        <div style="
+                            font-weight: 500;
+                            color: #fff;
+                            font-size: 14px;
+                        ">${reminder.title}</div>
+                        <div style="
+                            display: flex;
+                            gap: 8px;
+                            align-items: center;
+                        ">
+                            ${reminder.is_recurring ? `<span style="
+                                background: #00d4ff;
+                                color: white;
+                                padding: 2px 6px;
+                                border-radius: 3px;
+                                font-size: 10px;
+                            ">Recurring</span>` : ''}
+                            ${isOverdue ? `<span style="
+                                background: #ff4444;
+                                color: white;
+                                padding: 2px 6px;
+                                border-radius: 3px;
+                                font-size: 10px;
+                            ">Overdue</span>` : ''}
+                            <button onclick="window.gptUI.snoozeReminder(${reminder.id})" style="
+                                background: #666;
+                                color: white;
+                                border: none;
+                                padding: 4px 8px;
+                                border-radius: 3px;
+                                cursor: pointer;
+                                font-size: 10px;
+                            ">Snooze</button>
+                            <button onclick="window.gptUI.deleteReminder(${reminder.id})" style="
+                                background: #ff4444;
+                                color: white;
+                                border: none;
+                                padding: 4px 8px;
+                                border-radius: 3px;
+                                cursor: pointer;
+                                font-size: 10px;
+                            ">Delete</button>
+                        </div>
+                    </div>
+                    <div style="
+                        color: #ccc;
+                        font-size: 13px;
+                        margin-bottom: 8px;
+                    ">
+                        📅 ${reminderDate.toLocaleDateString()} ${reminderDate.toLocaleTimeString()}
+                    </div>
+                    ${reminder.description ? `<div style="
+                        color: #fff;
+                        line-height: 1.4;
+                        white-space: pre-wrap;
+                    ">${reminder.description}</div>` : ''}
+                </div>
+            `;
+        }).join('');
+    }
+    
+    async snoozeReminder(reminderId) {
+        const snoozeMinutes = prompt('Snooze for how many minutes?', '60');
+        if (!snoozeMinutes) return;
+        
+        const snoozeUntil = new Date(Date.now() + parseInt(snoozeMinutes) * 60 * 1000);
+        
+        try {
+            const response = await ipcRenderer.invoke('project-action', {
+                action: 'snooze_reminder',
+                data: { id: reminderId, snoozeUntil: snoozeUntil.toISOString() }
+            });
+            
+            if (response.success) {
+                this.showNotification('Reminder snoozed', 'success');
+                // Reload reminders for current project
+                const modal = document.getElementById('editProjectModal');
+                if (modal) {
+                    this.loadProjectReminders(modal.dataset.projectId);
+                }
+            }
+        } catch (error) {
+            console.error('Error snoozing reminder:', error);
+            this.showNotification('Error snoozing reminder', 'error');
+        }
+    }
+    
+    async deleteReminder(reminderId) {
+        if (!confirm('Are you sure you want to delete this reminder?')) return;
+        
+        try {
+            const response = await ipcRenderer.invoke('project-action', {
+                action: 'delete_reminder',
+                data: { id: reminderId }
+            });
+            
+            if (response.success) {
+                this.showNotification('Reminder deleted', 'success');
+                // Reload reminders for current project
+                const modal = document.getElementById('editProjectModal');
+                if (modal) {
+                    this.loadProjectReminders(modal.dataset.projectId);
+                }
+            }
+        } catch (error) {
+            console.error('Error deleting reminder:', error);
+            this.showNotification('Error deleting reminder', 'error');
+        }
+    }
+    
+    // Handle notification click events
+    async handleNotificationClick(data) {
+        console.log('🔔 Handling notification click:', data);
+        
+        // Switch to projects view
+        this.switchProjectView('main');
+        
+        // Find and open the project
+        if (data.projectId) {
+            await this.openProject(data.projectId);
+        }
+    }
+    
+    // Test notification system
+    async testNotification() {
+        try {
+            console.log('🔔 Frontend: Testing notification system...');
+            
+            const result = await ipcRenderer.invoke('test-system-notification');
+            console.log('🔔 Frontend: Test notification result:', result);
+            
+            if (result.success) {
+                this.showNotification('Test notification sent!', 'success');
+            } else {
+                this.showNotification('Failed to send notification: ' + result.error, 'error');
+            }
+        } catch (error) {
+            console.error('🔔 Frontend: Error testing notification:', error);
+            this.showNotification('Error testing notification: ' + error.message, 'error');
+        }
+    }
+
+    // Debug reminders
+    async debugReminders() {
+        try {
+            console.log('🔍 Frontend: Debugging reminders...');
+            
+            const result = await ipcRenderer.invoke('debug-reminders');
+            console.log('🔍 Frontend: Debug reminders result:', result);
+            
+            if (result.success) {
+                console.log('🔍 All reminders:', result.allReminders);
+                console.log('🔍 Due reminders:', result.dueReminders);
+                console.log('🔍 Current time:', result.currentTime);
+                
+                this.showNotification(`Found ${result.allReminders?.length || 0} total reminders, ${result.dueReminders?.length || 0} due`, 'info');
+            } else {
+                this.showNotification('Failed to debug reminders: ' + result.error, 'error');
+            }
+        } catch (error) {
+            console.error('🔍 Frontend: Error debugging reminders:', error);
+            this.showNotification('Error debugging reminders: ' + error.message, 'error');
         }
     }
 }
