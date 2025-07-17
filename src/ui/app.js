@@ -817,6 +817,20 @@ class GptUI {
                 senderName = 'GPT';
         }
         
+        // Check if this is a system status message (contains the ASCII box art)
+        const isSystemStatus = messageData.message && messageData.message.includes('╭─────────── 🖥️ System Status ───────────╮');
+        
+        // For system status messages, use monospace font and preserve formatting
+        if (isSystemStatus) {
+            return `
+                <div class="message ${senderClass}">
+                    <div class="message-header">${senderName} - ${time}</div>
+                    <pre style="font-family: 'Courier New', Consolas, monospace; white-space: pre; margin: 0; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 5px; overflow-x: auto;">${messageData.message}</pre>
+                </div>
+            `;
+        }
+        
+        // For regular messages, use normal HTML escaping
         return `
             <div class="message ${senderClass}">
                 <div class="message-header">${senderName} - ${time}</div>

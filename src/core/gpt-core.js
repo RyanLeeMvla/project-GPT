@@ -119,7 +119,18 @@ Available project_management actions:
 - add_inventory: Add inventory items { name, category, quantity?, location?, notes? }
 - update_inventory: Update inventory { itemId, name?, category?, quantity?, location?, notes? }
 
-When user asks to move/change/update project status or stage, use move_project_stage action.
+When user asks to move/change/update project status or stage, use:
+{
+    "action": "project_management",
+    "parameters": {
+        "action": "move_project_stage",
+        "data": {
+            "projectName": "Project Name",
+            "targetStage": "new_stage"
+        }
+    }
+}
+
 You can identify projects by ID or name. Be flexible with stage names (e.g., "done" = "completed").
 
 TRIGGER PHRASES:
@@ -148,27 +159,105 @@ ACTION TYPES:
 - "simulation_request"
 - "optimization_analysis"
 - "security_check"
+- "get_system_status" (for system health and status requests)
 
-Current system status: ${await this.getSystemStatus()}
+SYSTEM STATUS REQUESTS:
+When users ask for system status, health, or local machine information, use:
+{
+    "action": "get_system_status",
+    "parameters": {}
+}
+
+Examples of system status requests:
+- "get my local system status"
+- "show system health"
+- "what's my CPU usage"
+- "check system status"
+- "how is my computer running"
+
+ALWAYS use "get_system_status" action (NOT computer_operation) for system health queries.
+
+Note: System status available on request - use "get my local system status" to check current health.
 `;
         return context;
     }
 
     async getSystemStatus() {
         try {
+            // Check if subsystems are initialized
+            if (!this.projectManager || !this.fabricationManager || !this.computerController) {
+                return '❌ System status unavailable - Core subsystems not initialized';
+            }
+
             const activeProjects = await this.projectManager.getActiveProjects();
             const printerStatus = await this.fabricationManager.getPrinterStatus();
             const systemHealth = await this.computerController.getSystemHealth();
             
+            // Create status indicators
+            const healthEmoji = systemHealth.overall === 'Good' ? '🟢' : 
+                               systemHealth.overall === 'Fair' ? '🟡' : '🔴';
+            
+            const memoryEmoji = systemHealth.memory < 60 ? '🟢' : 
+                               systemHealth.memory < 80 ? '🟡' : '🔴';
+            
+            const cpuEmoji = systemHealth.cpu < 60 ? '🟢' : 
+                            systemHealth.cpu < 80 ? '🟡' : '🔴';
+            
+            const diskEmoji = systemHealth.disk < 80 ? '🟢' : 
+                             systemHealth.disk < 90 ? '🟡' : '🔴';
+            
+            const printerEmoji = printerStatus.status === 'connected' ? '🟢' : 
+                                printerStatus.status === 'printing' ? '🟡' : '🔴';
+            
             return `
-Active Projects: ${activeProjects.length}
-3D Printer Status: ${printerStatus.status}
-System Health: ${systemHealth.overall}
-Available Memory: ${systemHealth.memory}%
-CPU Usage: ${systemHealth.cpu}%
-`;
+╭─────────── 🖥️ System Status ───────────╮
+│                                        │
+│  📋 Projects: ${activeProjects.length} active                  │
+│  🖨️  Printer: ${printerEmoji} ${printerStatus.status}                │
+│                                        │
+│  ${healthEmoji} Health: ${systemHealth.overall}                     │
+│  ${memoryEmoji} Memory: ${systemHealth.memory}% used                │
+│  ${cpuEmoji} CPU: ${systemHealth.cpu}% active                  │
+│  ${diskEmoji} Disk: ${systemHealth.disk}% used (${systemHealth.diskFreeGB}GB free)   │
+│                                        │
+│  ⏱️  Uptime: ${systemHealth.uptime} hours              │
+│                                        │
+╰────────────────────────────────────────╯`;
         } catch (error) {
-            return 'System status unavailable';
+            return '❌ System status unavailable - ' + error.message;
+        }
+    }
+
+    // Detailed system status with 2-second CPU averaging - use when accuracy is critical
+    async getDetailedSystemStatus() {
+        try {
+            const activeProjects = await this.projectManager.getActiveProjects();
+            const printerStatus = await this.fabricationManager.getPrinterStatus();
+            const systemHealth = await this.computerController.getSystemHealth(); // Use detailed mode
+            
+            // Create status indicators
+            const healthEmoji = systemHealth.overall === 'Good' ? '🟢' : 
+                               systemHealth.overall === 'Fair' ? '🟡' : '🔴';
+            
+            const memoryEmoji = systemHealth.memory < 60 ? '🟢' : 
+                               systemHealth.memory < 80 ? '🟡' : '🔴';
+            
+            const cpuEmoji = systemHealth.cpu < 60 ? '🟢' : 
+                            systemHealth.cpu < 80 ? '🟡' : '🔴';
+            
+            const diskEmoji = systemHealth.disk < 80 ? '🟢' : 
+                             systemHealth.disk < 90 ? '🟡' : '🔴';
+
+            return `
+╭─────────── 🖥️ Detailed System Status ───────────╮
+│  📊 Projects: ${activeProjects.length} active 🖨️ Printer: ${printerStatus} │
+│  ${healthEmoji} Health: ${systemHealth.overall} ${memoryEmoji} Memory: ${systemHealth.memory}% used │
+│  ${cpuEmoji} CPU: ${systemHealth.cpu}% active (2s avg) ${diskEmoji} Disk: ${systemHealth.disk}% used (${systemHealth.diskFreeGB}GB free) │
+│  ⏱️  Uptime: ${systemHealth.uptime} hours              │
+│                                        │
+╰────────────────────────────────────────╯`;
+        } catch (error) {
+            return '❌ Detailed system status unavailable - ' + error.message;
         }
     }
 
@@ -373,7 +462,13 @@ CPU Usage: ${systemHealth.cpu}%
         try {
             switch (actionType) {
                 case 'computer_operation':
-                    return await this.computerController.executeOperation(parameters);
+                    // Transform action parameter to operation for computer controller
+                    const computerParams = {
+                        operation: parameters.action || parameters.operation,
+                        target: parameters.target,
+                        options: parameters.options || {}
+                    };
+                    return await this.computerController.executeOperation(computerParams);
                 
                 case 'project_management':
                     return await this.projectManager.executeAction(parameters);
@@ -519,6 +614,23 @@ ${applicationResult.failureCount > 0 ? `⚠️ Failed changes: ${applicationResu
                             success: false,
                             error: 'Code rewriter is not available. Feature implementation requires the global code generation system.',
                             suggestRestart: true
+                        };
+                    }
+                
+                case 'get_system_status':
+                case 'system_status':
+                    // Handle system status requests
+                    try {
+                        const statusMessage = await this.getSystemStatus();
+                        return {
+                            success: true,
+                            message: statusMessage,
+                            data: statusMessage
+                        };
+                    } catch (error) {
+                        return {
+                            success: false,
+                            error: error.message
                         };
                     }
                 
