@@ -114,12 +114,60 @@ Available project_management actions:
 - delete_project: Delete/remove projects { projectId OR projectName }
 - get_projects: List all projects { status?, limit? }
 - add_note: Add notes to projects { projectId, content, type? }
+- add_project_note: Add project-specific notes { projectId, content, tags?, createdBy? }
+- get_project_notes: Get project notes { projectId, limit? }
+- add_reminder: Add project reminders { projectId, title, description?, reminderDate, isRecurring?, recurrencePattern?, priority? }
+- get_reminders: Get project reminders { projectId?, includeInactive? }
+- update_reminder: Update reminder { id, title?, description?, reminderDate?, isRecurring?, recurrencePattern?, priority? }
+- delete_reminder: Delete reminder { id }
+- snooze_reminder: Snooze reminder { id, snoozeUntil }
+- get_due_reminders: Get due/overdue reminders { }
 - add_timeline_event: Add timeline events { title, description?, type?, project_id?, date? }
 - get_timeline: Get project timeline { projectId?, limit? }
 - move_project_stage: Move project between stages { projectId OR projectName, targetStage/targetStatus }
   Valid stages: planning, in_progress, active, testing, review, completed, on_hold, cancelled
 - add_inventory: Add inventory items { name, category, quantity?, location?, notes? }
 - update_inventory: Update inventory { itemId, name?, category?, quantity?, location?, notes? }
+
+REMINDER MANAGEMENT:
+When users want to create reminders, use:
+{
+    "action": "project_management",
+    "parameters": {
+        "action": "add_reminder",
+        "data": {
+            "projectId": 123,
+            "title": "Reminder title",
+            "description": "Optional description",
+            "reminderDate": "2024-12-25T10:00:00Z",
+            "isRecurring": false,
+            "recurrencePattern": { "type": "daily|weekly|monthly|yearly", "interval": 1 },
+            "priority": 1-3
+        }
+    }
+}
+
+Reminder patterns:
+- One-time: Set isRecurring to false
+- Daily: { "type": "daily", "interval": 1 }
+- Weekly: { "type": "weekly", "interval": 1 }  
+- Monthly: { "type": "monthly", "interval": 1 }
+- Yearly: { "type": "yearly", "interval": 1 }
+
+PROJECT NOTES:
+When users want to add project notes, use:
+{
+    "action": "project_management",
+    "parameters": {
+        "action": "add_project_note",
+        "data": {
+            "projectId": 123,
+            "content": "Note content",
+            "tags": ["tag1", "tag2"],
+            "createdBy": "ai"
+        }
+    }
+}
 
 When user asks to move/change/update project status or stage, use:
 {
@@ -138,6 +186,18 @@ You can identify projects by ID or name. Be flexible with stage names (e.g., "do
 TRIGGER PHRASES:
 - "GPT" - General commands and requests
 - "GPT, log that instance" - Note-taking with context awareness
+- "remind me" - Create reminders
+- "set reminder" - Create reminders
+- "note this" - Add project notes
+- "add note" - Add project notes
+
+EXAMPLES:
+- "remind me to check the printer tomorrow at 2pm"
+- "set a weekly reminder to review project status"
+- "note this: The calibration settings work well"
+- "add a note about the material choice"
+- "show me reminders for project X"
+- "what reminders are due?"
 
 RESPONSE FORMAT:
 Always respond with a JSON object containing:
@@ -272,6 +332,24 @@ Note: System status available on request - use "get my local system status" to c
             
             if (lowerInput.includes('gpt, log that instance')) {
                 return await this.handleNoteLogging(userInput);
+            }
+            
+            // Check for reminder creation patterns
+            if (lowerInput.includes('remind me') || lowerInput.includes('set reminder') || 
+                lowerInput.includes('reminder to') || lowerInput.includes('schedule reminder')) {
+                return await this.handleReminderCreation(userInput);
+            }
+            
+            // Check for note-taking patterns
+            if (lowerInput.includes('note this') || lowerInput.includes('add note') || 
+                lowerInput.includes('take note') || lowerInput.includes('log this')) {
+                return await this.handleProjectNoteCreation(userInput);
+            }
+            
+            // Check for reminder queries
+            if (lowerInput.includes('show reminders') || lowerInput.includes('what reminders') || 
+                lowerInput.includes('due reminders') || lowerInput.includes('upcoming reminders')) {
+                return await this.handleReminderQuery(userInput);
             }
             
             // Check if we're in an active feature request workflow
