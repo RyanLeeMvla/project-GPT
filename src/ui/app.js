@@ -556,6 +556,9 @@ class GptUI {
                     </div>
                 </div>
                 <div class="project-actions">
+                    <button class="btn-edit" data-project-id="${project.id}" title="Edit Project">
+                        ✏️
+                    </button>
                     <button class="btn-delete" data-project-id="${project.id}" title="Delete Project">
                         🗑️
                     </button>
@@ -566,12 +569,28 @@ class GptUI {
         // Add click listeners to project items
         document.querySelectorAll('.project-item[data-project-id]').forEach(item => {
             item.addEventListener('click', (e) => {
-                // Don't open project if clicking on delete button
-                if (e.target.classList.contains('btn-delete')) {
+                // Don't open project if clicking on edit or delete button
+                if (e.target.classList.contains('btn-delete') || e.target.classList.contains('btn-edit')) {
                     return;
                 }
                 const projectId = e.currentTarget.getAttribute('data-project-id');
                 this.openProject(projectId);
+            });
+        });
+
+        // Add edit button listeners
+        document.querySelectorAll('.btn-edit').forEach(button => {
+            button.addEventListener('click', async (e) => {
+                e.stopPropagation(); // Prevent triggering project open
+                const projectId = e.target.getAttribute('data-project-id');
+                const project = this.projects.find(p => p.id == projectId);
+                
+                if (!project) {
+                    this.showError('Project not found');
+                    return;
+                }
+                
+                await this.showEditProjectModal(project);
             });
         });
 
@@ -581,6 +600,11 @@ class GptUI {
                 e.stopPropagation(); // Prevent triggering project open
                 const projectId = e.target.getAttribute('data-project-id');
                 const project = this.projects.find(p => p.id == projectId);
+                
+                if (!project) {
+                    this.showError('Project not found');
+                    return;
+                }
                 
                 if (confirm(`Are you sure you want to delete "${project.name}"? This action cannot be undone.`)) {
                     await this.deleteProject(projectId);
@@ -1477,17 +1501,288 @@ class GptUI {
 
     async deleteProject(projectId) {
         try {
-            const result = await ipcRenderer.invoke('delete-project', projectId);
+            if (!projectId) {
+                this.showError('Invalid project ID');
+                return;
+            }
             
-            if (result.success) {
+            console.log('Deleting project with ID:', projectId);
+            const result = await ipcRenderer.invoke('delete-project', projectId);
+            console.log('Delete result:', result);
+            
+            if (result && result.success) {
                 this.showSuccess('Project deleted successfully!');
                 await this.loadProjects(); // Refresh the projects list
             } else {
-                this.showError('Failed to delete project: ' + (result.error || 'Unknown error'));
+                this.showError('Failed to delete project: ' + (result?.error || result?.message || 'Unknown error'));
             }
         } catch (error) {
             console.error('Error deleting project:', error);
-            this.showError('Failed to delete project');
+            this.showError('Failed to delete project: ' + error.message);
+        }
+    }
+
+    async showEditProjectModal(project) {
+        // Create a modal overlay if it doesn't exist
+        let modal = document.getElementById('editProjectModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'editProjectModal';
+            modal.className = 'modal-overlay';
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                background: rgba(0, 0, 0, 0.85);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 1000;
+            `;
+            
+            modal.innerHTML = `
+                <div class="modal-content" style="
+                    background: #1a1a1a;
+                    border: 1px solid #333;
+                    border-radius: 12px;
+                    padding: 24px;
+                    width: 90%;
+                    max-width: 500px;
+                    max-height: 80vh;
+                    overflow-y: auto;
+                    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+                ">
+                    <div class="modal-header" style="
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        margin-bottom: 20px;
+                        padding-bottom: 16px;
+                        border-bottom: 1px solid #333;
+                    ">
+                        <h2 style="margin: 0; color: #ffffff;">Edit Project</h2>
+                        <button id="closeEditModal" style="
+                            background: none;
+                            border: none;
+                            font-size: 24px;
+                            cursor: pointer;
+                            color: #ccc;
+                        ">&times;</button>
+                    </div>
+                    
+                    <form id="editProjectForm">
+                        <div class="form-group" style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 8px; color: #ffffff; font-weight: 500;">
+                                Project Name *
+                            </label>
+                            <input type="text" id="editProjectName" required style="
+                                width: 100%;
+                                padding: 12px;
+                                border: 1px solid #333;
+                                border-radius: 6px;
+                                background: #2a2a2a;
+                                color: #ffffff;
+                                font-size: 14px;
+                            ">
+                        </div>
+                        
+                        <div class="form-group" style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 8px; color: #ffffff; font-weight: 500;">
+                                Description
+                            </label>
+                            <textarea id="editProjectDescription" rows="3" style="
+                                width: 100%;
+                                padding: 12px;
+                                border: 1px solid #333;
+                                border-radius: 6px;
+                                background: #2a2a2a;
+                                color: #ffffff;
+                                font-size: 14px;
+                                resize: vertical;
+                            "></textarea>
+                        </div>
+                        
+                        <div class="form-group" style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 8px; color: #ffffff; font-weight: 500;">
+                                Project Type
+                            </label>
+                            <select id="editProjectType" style="
+                                width: 100%;
+                                padding: 12px;
+                                border: 1px solid #333;
+                                border-radius: 6px;
+                                background: #2a2a2a;
+                                color: #ffffff;
+                                font-size: 14px;
+                            ">
+                                <option value="general">General</option>
+                                <option value="software">Software</option>
+                                <option value="hardware">Hardware</option>
+                                <option value="3d-printing">3D Printing</option>
+                                <option value="web-development">Web Development</option>
+                                <option value="mobile-development">Mobile Development</option>
+                                <option value="research">Research</option>
+                                <option value="documentation">Documentation</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group" style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 8px; color: #ffffff; font-weight: 500;">
+                                Status
+                            </label>
+                            <select id="editProjectStatus" style="
+                                width: 100%;
+                                padding: 12px;
+                                border: 1px solid #333;
+                                border-radius: 6px;
+                                background: #2a2a2a;
+                                color: #ffffff;
+                                font-size: 14px;
+                            ">
+                                <option value="planning">Planning</option>
+                                <option value="active">Active</option>
+                                <option value="in_progress">In Progress</option>
+                                <option value="testing">Testing</option>
+                                <option value="review">Review</option>
+                                <option value="completed">Completed</option>
+                                <option value="on_hold">On Hold</option>
+                                <option value="cancelled">Cancelled</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group" style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 8px; color: #ffffff; font-weight: 500;">
+                                Priority (1-5)
+                            </label>
+                            <input type="number" id="editProjectPriority" min="1" max="5" style="
+                                width: 100%;
+                                padding: 12px;
+                                border: 1px solid #333;
+                                border-radius: 6px;
+                                background: #2a2a2a;
+                                color: #ffffff;
+                                font-size: 14px;
+                            ">
+                        </div>
+                        
+                        <div class="form-actions" style="
+                            display: flex;
+                            gap: 12px;
+                            margin-top: 24px;
+                            padding-top: 16px;
+                            border-top: 1px solid #333;
+                        ">
+                            <button type="button" id="cancelEditProject" style="
+                                flex: 1;
+                                padding: 12px 20px;
+                                border: 1px solid #333;
+                                border-radius: 6px;
+                                background: #2a2a2a;
+                                color: #ffffff;
+                                cursor: pointer;
+                                font-size: 14px;
+                                transition: all 0.3s ease;
+                            ">Cancel</button>
+                            <button type="submit" id="saveEditProject" style="
+                                flex: 1;
+                                padding: 12px 20px;
+                                border: none;
+                                border-radius: 6px;
+                                background: #00d4ff;
+                                color: white;
+                                cursor: pointer;
+                                font-size: 14px;
+                                font-weight: 500;
+                                transition: all 0.3s ease;
+                            ">Save Changes</button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+        }
+        
+        // Populate form with project data
+        document.getElementById('editProjectName').value = project.name || '';
+        document.getElementById('editProjectDescription').value = project.description || '';
+        document.getElementById('editProjectType').value = project.type || 'general';
+        document.getElementById('editProjectStatus').value = project.status || 'active';
+        document.getElementById('editProjectPriority').value = project.priority || 1;
+        
+        // Store project ID for saving
+        modal.dataset.projectId = project.id;
+        
+        // Show modal
+        modal.style.display = 'flex';
+        
+        // Add event listeners
+        this.setupEditModalListeners();
+    }
+    
+    setupEditModalListeners() {
+        const modal = document.getElementById('editProjectModal');
+        const closeBtn = document.getElementById('closeEditModal');
+        const cancelBtn = document.getElementById('cancelEditProject');
+        const form = document.getElementById('editProjectForm');
+        
+        // Close modal handlers
+        const closeModal = () => {
+            modal.style.display = 'none';
+        };
+        
+        closeBtn.onclick = closeModal;
+        cancelBtn.onclick = closeModal;
+        
+        // Close on overlay click
+        modal.onclick = (e) => {
+            if (e.target === modal) {
+                closeModal();
+            }
+        };
+        
+        // Form submission
+        form.onsubmit = async (e) => {
+            e.preventDefault();
+            await this.saveProjectEdits();
+        };
+    }
+    
+    async saveProjectEdits() {
+        const modal = document.getElementById('editProjectModal');
+        const projectId = modal.dataset.projectId;
+        
+        const updates = {
+            name: document.getElementById('editProjectName').value.trim(),
+            description: document.getElementById('editProjectDescription').value.trim(),
+            type: document.getElementById('editProjectType').value,
+            status: document.getElementById('editProjectStatus').value,
+            priority: parseInt(document.getElementById('editProjectPriority').value)
+        };
+        
+        // Validation
+        if (!updates.name) {
+            this.showError('Project name is required');
+            return;
+        }
+        
+        try {
+            console.log('Updating project with ID:', projectId, 'Updates:', updates);
+            const result = await ipcRenderer.invoke('edit-project', projectId, updates);
+            console.log('Edit result:', result);
+            
+            if (result && result.success) {
+                this.showSuccess('Project updated successfully!');
+                modal.style.display = 'none';
+                await this.loadProjects(); // Refresh the projects list
+            } else {
+                this.showError('Failed to update project: ' + (result?.error || result?.message || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Error updating project:', error);
+            this.showError('Failed to update project: ' + error.message);
         }
     }
 }

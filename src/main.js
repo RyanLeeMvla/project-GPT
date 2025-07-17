@@ -323,6 +323,10 @@ class GptApp {
             return await this.projectManager.deleteProject(projectId);
         });
 
+        ipcMain.handle('edit-project', async (event, projectId, updates) => {
+            return await this.projectManager.updateProject(projectId, updates);
+        });
+
         // Add missing IPC handlers for project management
         ipcMain.handle('get-all-tasks', async () => {
             try {

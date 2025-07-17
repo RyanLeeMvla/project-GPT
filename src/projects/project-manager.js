@@ -259,6 +259,16 @@ class ProjectManager {
 
     async deleteProject(projectId) {
         return new Promise((resolve, reject) => {
+            if (!projectId) {
+                resolve({
+                    success: false,
+                    error: 'Project ID is required'
+                });
+                return;
+            }
+            
+            console.log('🗑️ Deleting project with ID:', projectId);
+            
             const query = `
                 UPDATE projects 
                 SET status = 'deleted', updated_at = CURRENT_TIMESTAMP 
@@ -268,7 +278,16 @@ class ProjectManager {
             this.db.run(query, [projectId], function(err) {
                 if (err) {
                     console.error('❌ Error deleting project:', err);
-                    reject(err);
+                    resolve({
+                        success: false,
+                        error: err.message
+                    });
+                } else if (this.changes === 0) {
+                    console.warn('⚠️ No project found with ID:', projectId);
+                    resolve({
+                        success: false,
+                        error: `Project with ID ${projectId} not found`
+                    });
                 } else {
                     console.log(`✅ Project ${projectId} marked as deleted`);
                     resolve({
@@ -526,6 +545,62 @@ class ProjectManager {
                 
                 case 'update_inventory':
                     return await this.updateInventoryQuantity(data.id, data.change, data.reason);
+                
+                case 'edit_project':
+                case 'update_project':
+                    // Handle both projectId and projectName
+                    let projectIdToEdit = data.projectId || data.id;
+                    if (!projectIdToEdit && data.projectName) {
+                        const project = await this.findProjectByName(data.projectName);
+                        if (project) {
+                            projectIdToEdit = project.id;
+                        } else {
+                            return {
+                                success: false,
+                                error: `Project "${data.projectName}" not found`
+                            };
+                        }
+                    }
+                    
+                    if (!projectIdToEdit) {
+                        return {
+                            success: false,
+                            error: 'Project ID or name is required for editing'
+                        };
+                    }
+                    
+                    // Extract updates from data (exclude projectId, projectName)
+                    const updates = { ...data };
+                    delete updates.projectId;
+                    delete updates.projectName;
+                    delete updates.id;
+                    delete updates.action;
+                    
+                    return await this.updateProject(projectIdToEdit, updates);
+
+                case 'delete_project':
+                    // Handle both projectId and projectName
+                    let projectIdToDelete = data.projectId || data.id;
+                    if (!projectIdToDelete && data.projectName) {
+                        const project = await this.findProjectByName(data.projectName);
+                        if (project) {
+                            projectIdToDelete = project.id;
+                        } else {
+                            return {
+                                success: false,
+                                error: `Project "${data.projectName}" not found`
+                            };
+                        }
+                    }
+                    
+                    if (!projectIdToDelete) {
+                        return {
+                            success: false,
+                            error: 'Project ID or name is required for deletion'
+                        };
+                    }
+                    
+                    return await this.deleteProject(projectIdToDelete);
                 
                 case 'add_timeline_event':
                     return await this.addTimelineEvent(data);

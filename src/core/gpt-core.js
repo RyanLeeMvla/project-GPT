@@ -109,7 +109,9 @@ When users ask to create projects, use:
 
 Available project_management actions:
 - create_project: Create new projects { name, description?, type?, priority?, deadline? }
+- edit_project: Edit/update existing projects { projectId OR projectName, name?, description?, type?, priority?, deadline?, status? }
 - update_project: Update existing projects { projectId, name?, description?, type?, priority?, deadline?, status? }
+- delete_project: Delete/remove projects { projectId OR projectName }
 - get_projects: List all projects { status?, limit? }
 - add_note: Add notes to projects { projectId, content, type? }
 - add_timeline_event: Add timeline events { title, description?, type?, project_id?, date? }
