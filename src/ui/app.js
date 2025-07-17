@@ -548,10 +548,17 @@ class GptUI {
 
         projectsList.innerHTML = this.projects.map(project => `
             <div class="project-item" data-project-id="${project.id}">
-                <div class="project-name">${project.name}</div>
-                <div class="project-meta">
-                    ${project.type} • ${project.status} • 
-                    Created: ${new Date(project.created_at).toLocaleDateString()}
+                <div class="project-content">
+                    <div class="project-name">${project.name}</div>
+                    <div class="project-meta">
+                        ${project.type} • ${project.status} • 
+                        Created: ${new Date(project.created_at).toLocaleDateString()}
+                    </div>
+                </div>
+                <div class="project-actions">
+                    <button class="btn-delete" data-project-id="${project.id}" title="Delete Project">
+                        🗑️
+                    </button>
                 </div>
             </div>
         `).join('');
@@ -559,8 +566,25 @@ class GptUI {
         // Add click listeners to project items
         document.querySelectorAll('.project-item[data-project-id]').forEach(item => {
             item.addEventListener('click', (e) => {
+                // Don't open project if clicking on delete button
+                if (e.target.classList.contains('btn-delete')) {
+                    return;
+                }
                 const projectId = e.currentTarget.getAttribute('data-project-id');
                 this.openProject(projectId);
+            });
+        });
+
+        // Add delete button listeners
+        document.querySelectorAll('.btn-delete').forEach(button => {
+            button.addEventListener('click', async (e) => {
+                e.stopPropagation(); // Prevent triggering project open
+                const projectId = e.target.getAttribute('data-project-id');
+                const project = this.projects.find(p => p.id == projectId);
+                
+                if (confirm(`Are you sure you want to delete "${project.name}"? This action cannot be undone.`)) {
+                    await this.deleteProject(projectId);
+                }
             });
         });
         
@@ -1088,20 +1112,24 @@ class GptUI {
 
     async loadKanbanBoard() {
         try {
-            const tasks = await ipcRenderer.invoke('get-all-tasks');
-            this.renderKanbanBoard(tasks || []);
+            const projects = await ipcRenderer.invoke('get-projects');
+            console.log('🏗️ Kanban: Loaded projects:', projects);
+            this.renderKanbanBoard(projects || []);
         } catch (error) {
             console.error('Error loading kanban board:', error);
         }
     }
 
     renderKanbanBoard(projects) {
+        console.log('🏗️ Kanban: Rendering with projects:', projects);
         const columns = {
             planning: projects.filter(p => p.status === 'planning'),
-            in_progress: projects.filter(p => p.status === 'in_progress'),
+            in_progress: projects.filter(p => p.status === 'in_progress' || p.status === 'active'),
             review: projects.filter(p => p.status === 'review'),
             completed: projects.filter(p => p.status === 'completed')
         };
+        
+        console.log('🏗️ Kanban: Column distribution:', columns);
 
         Object.keys(columns).forEach(status => {
             const columnId = status === 'in_progress' ? 'progressTasks' : 
@@ -1430,6 +1458,22 @@ class GptUI {
                 modal.style.display = 'none';
                 modal.style.opacity = '1'; // Reset for next time
             }, 300);
+        }
+    }
+
+    async deleteProject(projectId) {
+        try {
+            const result = await ipcRenderer.invoke('delete-project', projectId);
+            
+            if (result.success) {
+                this.showSuccess('Project deleted successfully!');
+                await this.loadProjects(); // Refresh the projects list
+            } else {
+                this.showError('Failed to delete project: ' + (result.error || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Error deleting project:', error);
+            this.showError('Failed to delete project');
         }
     }
 }

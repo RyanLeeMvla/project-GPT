@@ -606,35 +606,33 @@ ${applicationResult.failureCount > 0 ? `⚠️ Failed changes: ${applicationResu
 
             // Use a lightweight model for quick feature detection
             const detectionPrompt = `
-Analyze this user input to determine if it's a request for code/UI improvements, new features, or enhancements.
+Analyze this user input to determine if it's requesting to CREATE or MODIFY the application's code/interface.
 
 User input: "${userInput}"
+
+IMPORTANT: Only classify as feature request if the user wants to CHANGE THE CODE or CREATE NEW FUNCTIONALITY.
+
+NOT feature requests (using existing features):
+- Moving/updating/managing existing projects or data
+- Using existing UI elements or commands  
+- Standard CRUD operations (create, read, update, delete existing data)
+- Navigation or viewing operations
+- Project management commands (move stages, update status, etc.)
+
+Feature requests (changing the codebase):
+- "add a search feature" (new functionality)
+- "make the UI better" (modify interface)
+- "change button colors" (modify styling)
+- "redesign the dashboard" (modify layout)
 
 Respond with JSON only:
 {
     "isFeatureRequest": true/false,
     "confidence": 0.0-1.0,
-    "target": "ui|notes|dashboard|general|specific_component",
-    "type": "enhancement|new_feature|redesign|improvement|bug_fix",
-    "priority": "high|medium|low",
-    "description": "Brief description of what the user wants"
+    "reason": "Brief explanation of why this is/isn't a feature request"
 }
 
-Examples of feature requests:
-- "make the notes page better"
-- "add a search feature"
-- "redesign the dashboard"
-- "improve the UI"
-- "the notes section needs work"
-- "can you enhance the interface"
-- "change the color of the send button"
-
-Examples of NOT feature requests:
-- "what is the weather"
-- "show me my projects"
-- "how do I use this"
-- "tell me a joke"
-`;
+Be VERY conservative - when in doubt, choose false.`;
 
             const completion = await this.openai.chat.completions.create({
                 model: "gpt-3.5-turbo",
@@ -646,37 +644,77 @@ Examples of NOT feature requests:
             const response = JSON.parse(completion.choices[0].message.content);
             
             // Return false if not a feature request or confidence too low
-            if (!response.isFeatureRequest || response.confidence < 0.6) {
+            if (!response.isFeatureRequest || response.confidence < 0.8) {
+                console.log(`🚫 Not a feature request: ${response.reason || 'Low confidence'}`);
                 return false;
             }
 
-            return response;
+            console.log(`🚀 Feature request detected: ${response.reason}`);
+            return {
+                isFeatureRequest: true,
+                confidence: response.confidence,
+                target: 'general',
+                type: 'improvement',
+                priority: 'medium',
+                description: `User requested: ${userInput}`
+            };
 
         } catch (error) {
             console.error('❌ Error in AI feature detection:', error);
-            // Fallback to simple keyword detection
-            const lowerInput = userInput.toLowerCase();
-            const featureKeywords = ['improve', 'enhance', 'add', 'create', 'build', 'make', 'redesign', 'rewrite', 'better', 'upgrade', 'change', 'feature'];
-            const hasFeatureKeyword = featureKeywords.some(keyword => lowerInput.includes(keyword));
             
-            if (hasFeatureKeyword) {
-                let target = 'general';
-                if (lowerInput.includes('notes')) target = 'notes';
-                else if (lowerInput.includes('ui') || lowerInput.includes('interface')) target = 'ui';
-                else if (lowerInput.includes('dashboard')) target = 'dashboard';
-                else if (lowerInput.includes('button')) target = 'ui';
-                else if (lowerInput.includes('chat')) target = 'chat';
+            // Intelligent fallback using AI for intent classification
+            try {
+                const intentPrompt = `
+Classify this user input into one of these categories:
+
+User input: "${userInput}"
+
+Categories:
+1. PROJECT_MANAGEMENT - Moving, updating, or managing existing projects/tasks
+2. FEATURE_REQUEST - Requesting new features, improvements, or code changes  
+3. GENERAL_QUERY - Questions, information requests, or other commands
+
+Consider the INTENT and CONTEXT, not just keywords.
+
+Examples:
+- "Move UI Improvement projects to planning stage" = PROJECT_MANAGEMENT (managing existing projects)
+- "Make the UI better" = FEATURE_REQUEST (requesting improvements)
+- "Show me my projects" = GENERAL_QUERY (information request)
+
+Respond with only the category name.`;
+
+                const intentCompletion = await this.openai.chat.completions.create({
+                    model: "gpt-3.5-turbo",
+                    messages: [{ role: "user", content: intentPrompt }],
+                    temperature: 0.1,
+                    max_tokens: 50
+                });
+
+                const intent = intentCompletion.choices[0].message.content.trim();
                 
-                return {
-                    isFeatureRequest: true,
-                    confidence: 0.7,
-                    target: target,
-                    type: 'improvement',
-                    priority: 'medium',
-                    description: `User requested: ${userInput}`
-                };
+                if (intent === 'PROJECT_MANAGEMENT' || intent === 'GENERAL_QUERY') {
+                    console.log(`🎯 AI classified as ${intent}, skipping feature detection`);
+                    return false;
+                }
+                
+                if (intent === 'FEATURE_REQUEST') {
+                    console.log('🚀 AI classified as FEATURE_REQUEST');
+                    return {
+                        isFeatureRequest: true,
+                        confidence: 0.6, // Lower confidence for fallback detection
+                        target: 'general',
+                        type: 'improvement',
+                        priority: 'medium',
+                        description: `User requested: ${userInput}`
+                    };
+                }
+
+            } catch (intentError) {
+                console.error('❌ AI intent classification failed:', intentError);
             }
             
+            // Last resort: conservative approach - don't trigger feature workflow
+            console.log('🚫 Fallback: treating as general command to avoid false positives');
             return false;
         }
     }

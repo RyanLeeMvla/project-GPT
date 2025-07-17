@@ -768,8 +768,32 @@ class CodeRewriter {
         const contextSummary = this.generateContextSummary(sourceContext);
         const relevantFiles = this.identifyRelevantFiles(sourceContext, analysisResult);
         
+        // ENHANCED: Include actual file content analysis if available
+        const enhancedAnalysis = analysisResult.fileAnalyses ? `
+🚨 CRITICAL ENHANCED CONTENT ANALYSIS 🚨
+DO NOT IGNORE - USE ONLY THESE ACTUAL SELECTORS:
+
+${Object.entries(analysisResult.fileAnalyses).map(([file, analysis]) => `
+📁 FILE: ${file}
+🆔 ACTUAL IDs THAT EXIST: ${analysis.htmlIdentifiers.ids.join(', ') || 'NONE'}
+🎨 ACTUAL CLASSES THAT EXIST: ${analysis.htmlIdentifiers.classes.join(', ') || 'NONE'}
+🔧 ACTUAL CSS VARIABLES: ${analysis.cssVariables.join(', ') || 'NONE'}
+📝 HAS <style> TAG: ${analysis.hasStyleTag}
+📊 CSS SELECTORS IN FILE: ${analysis.cssSelectors.ids.map(id => `#${id}`).join(', ') || 'NONE'}
+`).join('')}
+
+🚨 MANDATORY RULES:
+1. ONLY use the IDs and classes listed above
+2. Do NOT create new selectors like .send-button if they don't exist
+3. Do NOT assume any selectors that aren't in the actual file analysis
+4. If you need to style #sendBtn, use #sendBtn - NOT .send-button
+5. Use existing CSS variables from the list above
+
+⛔ VIOLATION = IMMEDIATE FAILURE ⛔
+` : '';
+        
         return `
-SYSTEM: You are an expert full-stack software engineer with deep knowledge of JavaScript, Node.js, Electron, HTML, CSS, and modern web development practices. You can implement any feature request by generating precise, working code modifications.
+SYSTEM: You are an expert full-stack software engineer with deep knowledge of JavaScript, Node.js, Electron, HTML, CSS, and modern web development practices. You have ACTUAL FILE CONTENT ANALYSIS to prevent assumptions about selectors and code structure.
 
 ANALYSIS CONTEXT:
 - Request Type: ${analysisResult.requestType}
@@ -778,6 +802,9 @@ ANALYSIS CONTEXT:
 - Risk Level: ${analysisResult.riskLevel}
 - Affected Components: ${analysisResult.affectedComponents.join(', ')}
 - Technical Requirements: ${analysisResult.technicalRequirements.join(', ')}
+- Enhanced Context: ${analysisResult.enhancedContext ? 'YES - using actual file analysis' : 'NO'}
+
+${enhancedAnalysis}
 
 CONVERSATION HISTORY:
 ${conversation.map(msg => `${msg.role.toUpperCase()}: ${msg.content}`).join('\n')}
@@ -1424,10 +1451,24 @@ module.exports = ${fileName};
      * Analyzes the conversation to understand what needs to be built
      */
     async advancedRequestAnalysis(conversation, sourceContext, gptCore) {
-        console.log('🤖 ADVANCED AI: Analyzing request with deep context...');
+        console.log('🤖 ADVANCED AI: Analyzing request with enhanced content awareness...');
+        
+        // ENHANCED: Identify and analyze target files based on conversation
+        const targetFiles = this.identifyTargetFiles(conversation, sourceContext);
+        console.log(`🔍 Identified ${targetFiles.length} target files for analysis`);
+        
+        // ENHANCED: Analyze actual file content to provide real context
+        const fileAnalyses = {};
+        for (const filePath of targetFiles.slice(0, 5)) { // Analyze up to 5 most relevant files
+            const analysis = this.analyzeFileContent(filePath, sourceContext);
+            if (analysis) {
+                fileAnalyses[filePath] = analysis;
+                console.log(`📊 Analyzed ${filePath}: ${analysis.cssSelectors.ids.length} IDs, ${analysis.cssSelectors.classes.length} classes`);
+            }
+        }
         
         const analysisPrompt = `
-SYSTEM: You are an expert software architect analyzing feature requests. Provide detailed technical analysis.
+SYSTEM: You are an expert software architect analyzing feature requests. You have ACTUAL FILE CONTENT ANALYSIS to prevent assumptions.
 
 CONVERSATION HISTORY:
 ${conversation.map(msg => `${msg.role.toUpperCase()}: ${msg.content}`).join('\n')}
@@ -1435,6 +1476,18 @@ ${conversation.map(msg => `${msg.role.toUpperCase()}: ${msg.content}`).join('\n'
 PROJECT CONTEXT:
 - Total Files: ${Object.keys(sourceContext).length}
 - Key Components: ${Object.keys(sourceContext).filter(f => f.includes('src/')).slice(0, 5).join(', ')}
+
+ENHANCED CONTENT ANALYSIS:
+${Object.entries(fileAnalyses).map(([file, analysis]) => `
+File: ${file}
+- IDs found: ${analysis.cssSelectors.ids.join(', ') || 'none'}
+- Classes found: ${analysis.cssSelectors.classes.join(', ') || 'none'}
+- CSS Variables: ${analysis.cssVariables.join(', ') || 'none'}
+- Has <style> tag: ${analysis.hasStyleTag}
+- Has <script> tag: ${analysis.hasScriptTag}
+`).join('')}
+
+CRITICAL: Use the ACTUAL identifiers found above. Do NOT assume selectors that don't exist.
 
 TASK: Analyze this request and provide a JSON response with detailed technical analysis.
 
@@ -1448,7 +1501,9 @@ REQUIRED JSON FORMAT:
     "riskLevel": "low|medium|high",
     "keywords": ["keyword1", "keyword2"],
     "estimatedFiles": 3,
-    "priority": "low|medium|high"
+    "priority": "low|medium|high",
+    "actualSelectors": ${JSON.stringify(fileAnalyses)},
+    "targetFiles": ${JSON.stringify(targetFiles)}
 }
 
 Analyze the conversation and respond with only the JSON:`;
@@ -1460,7 +1515,12 @@ Analyze the conversation and respond with only the JSON:`;
             throw new Error('AI failed to provide valid analysis - autonomous mode requires AI analysis to proceed');
         }
         
-        console.log(`✅ Analysis complete: ${analysisResult.requestType} (${analysisResult.complexity})`);
+        // ENHANCED: Add the file analysis to the result for use in code generation
+        analysisResult.fileAnalyses = fileAnalyses;
+        analysisResult.enhancedContext = true;
+        
+        console.log(`✅ Enhanced analysis complete: ${analysisResult.requestType} (${analysisResult.complexity})`);
+        console.log(`🎯 Using actual selectors from ${Object.keys(fileAnalyses).length} analyzed files`);
         return analysisResult;
     }
 
@@ -1568,11 +1628,141 @@ Calculate a real safety score based on the actual risks identified. Provide vali
         return validationResult;
     }
 
+    /**
+     * Enhanced Context Analysis Methods
+     * These methods examine actual file content to prevent AI assumptions
+     */
+
+    /**
+     * Extract CSS selectors from file content
+     */
+    extractCSSSelectors(content) {
+        const selectors = {
+            ids: [],
+            classes: [],
+            elements: []
+        };
+
+        if (!content || typeof content !== 'string') return selectors;
+
+        // Extract ID selectors (#selector)
+        const idMatches = content.match(/#[\w-]+/g) || [];
+        selectors.ids = [...new Set(idMatches.map(m => m.substring(1)))];
+
+        // Extract class selectors (.selector)
+        const classMatches = content.match(/\.[\w-]+/g) || [];
+        selectors.classes = [...new Set(classMatches.map(m => m.substring(1)))];
+
+        // Extract element selectors (button, div, etc.)
+        const elementMatches = content.match(/\b[a-z]+\s*{/g) || [];
+        selectors.elements = [...new Set(elementMatches.map(m => m.replace(/\s*{/, '')))];
+
+        return selectors;
+    }
+
+    /**
+     * Extract HTML IDs and classes from file content
+     */
+    extractHTMLIds(content) {
+        const identifiers = {
+            ids: [],
+            classes: []
+        };
+
+        if (!content || typeof content !== 'string') return identifiers;
+
+        // Extract id attributes
+        const idMatches = content.match(/id=["']([^"']+)["']/g) || [];
+        identifiers.ids = [...new Set(idMatches.map(m => m.match(/id=["']([^"']+)["']/)[1]))];
+
+        // Extract class attributes
+        const classMatches = content.match(/class=["']([^"']+)["']/g) || [];
+        identifiers.classes = [...new Set(
+            classMatches.flatMap(m => 
+                m.match(/class=["']([^"']+)["']/)[1].split(/\s+/)
+            )
+        )];
+
+        return identifiers;
+    }
+
+    /**
+     * Extract CSS variables from file content
+     */
+    extractCSSVariables(content) {
+        if (!content || typeof content !== 'string') return [];
+
+        const variableMatches = content.match(/--[\w-]+/g) || [];
+        return [...new Set(variableMatches)];
+    }
+
+    /**
+     * Identify target files based on conversation context
+     */
+    identifyTargetFiles(conversation, sourceContext) {
+        const targetFiles = [];
+        const conversationText = conversation.map(msg => msg.content).join(' ').toLowerCase();
+
+        // Look for specific file mentions
+        for (const filePath of Object.keys(sourceContext)) {
+            const fileName = path.basename(filePath).toLowerCase();
+            const fileExt = path.extname(filePath);
+
+            // Check if file is mentioned directly
+            if (conversationText.includes(fileName.replace(/\.[^.]+$/, ''))) {
+                targetFiles.push(filePath);
+                continue;
+            }
+
+            // Check for UI-related requests and HTML/CSS files
+            if (conversationText.includes('button') || conversationText.includes('color') || 
+                conversationText.includes('style') || conversationText.includes('ui')) {
+                if (['.html', '.css', '.scss'].includes(fileExt)) {
+                    targetFiles.push(filePath);
+                }
+            }
+
+            // Check for JS functionality requests
+            if (conversationText.includes('function') || conversationText.includes('method') ||
+                conversationText.includes('feature') || conversationText.includes('click')) {
+                if (['.js', '.ts', '.jsx', '.tsx'].includes(fileExt)) {
+                    targetFiles.push(filePath);
+                }
+            }
+        }
+
+        return [...new Set(targetFiles)];
+    }
+
+    /**
+     * Analyze actual file content before generating changes
+     */
+    analyzeFileContent(filePath, sourceContext) {
+        const fileInfo = sourceContext[filePath];
+        if (!fileInfo || !fileInfo.content) return null;
+
+        const content = fileInfo.content; // Extract the actual content string
+
+        const analysis = {
+            filePath,
+            fileType: path.extname(filePath),
+            cssSelectors: this.extractCSSSelectors(content),
+            htmlIdentifiers: this.extractHTMLIds(content),
+            cssVariables: this.extractCSSVariables(content),
+            hasStyleTag: content.includes('<style>'),
+            hasScriptTag: content.includes('<script>'),
+            lineCount: content.split('\n').length
+        };
+
+        return analysis;
+    }
+
 }
 
-// ========================
-// STREAMLINED SYSTEM SUMMARY
-// ========================
+/*
+========================
+STREAMLINED SYSTEM SUMMARY
+========================
 /*
 NEW STREAMLINED WORKFLOW:
 

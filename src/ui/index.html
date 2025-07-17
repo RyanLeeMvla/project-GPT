@@ -1655,7 +1655,50 @@
 
         .page-content {
             position: relative;
-        }        </style>
+        }
+
+        /* Project delete button styles */
+        .project-item {
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+        }
+
+        .project-content {
+            flex: 1;
+        }
+
+        .project-actions {
+            display: flex;
+            gap: 8px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .project-item:hover .project-actions {
+            opacity: 1;
+        }
+
+        .btn-delete {
+            background: transparent;
+            border: 1px solid #ff4444;
+            color: #ff4444;
+            padding: 6px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-delete:hover {
+            background: #ff4444;
+            color: white;
+            transform: scale(1.05);
+        }
+        </style>
 </head>
 <body>
     <div class="container">
